@@ -5,6 +5,7 @@
 
 # External libraries
 /Lib
+/Programs/Skeleton/bin
 
 # User-specific files
 *.rsuser

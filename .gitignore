@@ -1,14 +1,14 @@
 
 
 # External libraries
-/Libs
-/Programs/Skeleton/bin
-/Programs/Skeleton/.sln
-/Programs/Skeleton/Debug
-/Programs/Skeleton/Release
-/Programs/Skeleton/.vcxproj
-/Programs/Skeleton/.filters
-/Programs/Skeleton/.user
+/lib
+/src/SunTunnel/bin
+/src/SunTunnel/.sln
+/src/SunTunnel/Debug
+/src/SunTunnel/Release
+/src/SunTunnel/.vcxproj
+/src/SunTunnel/.filters
+/src/SunTunnel/.user
 
 
 

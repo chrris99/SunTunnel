@@ -1,6 +1,14 @@
 
 
 # External libraries
+/Libs
+/Programs/Skeleton/bin
+/Programs/Skeleton/Skeleton.sln
+/Programs/Skeleton/Skeleton/Debug
+/Programs/Skeleton/Skeleton/Release
+/Programs/Skeleton/Skeleton/Skeleton.vcxproj
+/Programs/Skeleton/Skeleton/Skeleton.vcxproj.filters
+/Programs/Skeleton/Skeleton/Skeleton.vcxproj.user
 
 
 

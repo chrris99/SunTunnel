@@ -260,6 +260,15 @@ public:
 
 		hit.t = (t2 > 0) ? t2 : t1;
 		hit.setPosition(ray.getStart() + ray.getDir() * hit.t); // ray(t) = start + dir * t
+		
+		if (hit.getPosition().z > 0.8f) {
+			hit.t = t1;
+			hit.setPosition(ray.getStart() + ray.getDir() * hit.t);
+			if (hit.getPosition().z > 0.8f) {
+				hit.t = -1;
+				return hit;
+			}
+		}
 		hit.setNormal(gradf(vec4{ hit.getPosition().x, hit.getPosition().y, hit.getPosition().z, 1 }));
 		hit.setMaterial(material);
 
@@ -326,11 +335,34 @@ public:
 		};
 
 		this->Q = transform(untransformedQ, center);
-
 	}
 
 	Hit intersect(const Ray& ray) override {
+		Hit hit;
+		Hit nonhit;
 
+		vec4 D = vec4(ray.getDir().x, ray.getDir().y, ray.getDir().z, 0);
+		vec4 S = vec4(ray.getStart().x, ray.getStart().y, ray.getStart().z, 1);
+		float a = dot(D * Q, D);
+		float b = dot(D * Q, S) + dot(S * Q, D);
+		float c = dot(S * Q, S);
+
+		float discr = b * b - 4.0f * a * c;
+		if (discr < 0) return nonhit;
+		float sqrt_discr = sqrtf(discr);
+		float t1 = (-b + sqrt_discr) / 2.0f / a;    // t1 >= t2 for sure
+		float t2 = (-b - sqrt_discr) / 2.0f / a;
+		if (t1 <= 0) return nonhit;
+		hit.t = (t2 > 0) ? t2 : t1;
+		hit.setPosition(ray.getStart() + ray.getDir() * hit.t);
+		if (hit.getPosition().y > 0.2f || hit.getPosition().y < -0.5f) {
+			hit.t = t1;
+			hit.setPosition(ray.getStart() + ray.getDir() * hit.t);
+			if (hit.getPosition().y > 0.2f || hit.getPosition().y < -0.5f) return nonhit;
+		}
+		hit.setNormal(gradf(vec4(hit.getPosition().x, hit.getPosition().y, hit.getPosition().z, 1)));
+		hit.setMaterial(material);
+		return hit;
 	}
 };
 
@@ -377,23 +409,30 @@ private:
 public:
 	void build() {
 		// Create camera
-		vec3 eye = vec3{ 0, 0, 2 };
-		vec3 vup = vec3{ 0, 1, 0 };
+		vec3 eye = vec3{ -3.5, 0, 0 };
+		vec3 vup = vec3{ 0, 0, 1 };
 		vec3 lookat = vec3{ 0, 0, 0 };
 		float fov = 45 * M_PI / 180;
 		camera.set(eye, lookat, vup, fov);
 
 		// Create lights
 		ambientLight = vec3{ 0.4f, 0.4f, 0.4f };
+		lights.push_back(new Light(vec3(0.1, 0, 0.85), vec3(1, 1, 1)));
 
 		// Create materials
-		vec3 kd(0.3f, 0.2f, 0.1f);
-		vec3 ks(2, 2, 2);
+		vec3 kd(0.6f, 0.1f, 0.4f);
+		vec3 ks(0, 2, 2);
 		Material* material = new RoughMaterial(kd, ks, 50);
+		Material* material2 = new RoughMaterial(vec3(0.2f, 0.2f, 0.4f), ks, 50);
 
 		// Create objects
-		objects.push_back(new Cylinder(vec3(1, 0, 0), vec3(0.2, 0, 1), material));
-		objects.push_back(new Ellipsoid(vec3(0, 0, 0), vec3(0.2, 0.5, 0.5), material));
+		//objects.push_back(new Cylinder(vec3(0.5, 0, 0), vec3(0.2, 0, 0.3), material));
+		objects.push_back(new Ellipsoid(vec3(0, 0, -0.55), vec3(0.2, 0.1, 0.3), material));
+		objects.push_back(new Ellipsoid(vec3(-1, 0.1, -0.7), vec3(0.2, 0.1, 0.1), material));
+		//objects.push_back(new Cylinder(vec3(-0.1, 0.5, 0), vec3(2, 0.2, 0.4), material));
+
+		// Ellipsoid room
+		objects.push_back(new Ellipsoid(vec3(0, 0, 0), vec3(4, 0.85, 0.85), material2));
 	}
 
 	void render(std::vector<vec4>& image) {

@@ -17,6 +17,26 @@
 
 #include "framework.h"
 
+#pragma region Operators
+
+// Required operators
+vec3 operator/(vec3 num, vec3 denom) {
+	return vec3(num.x / denom.x, num.y / denom.y, num.z / denom.z);
+}
+
+mat4 transpose(const mat4& m) {
+	mat4 mTranspose;
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 4; j++) {
+			mTranspose[i][j] = m[j][i];
+		}
+	}
+
+	return mTranspose;
+}
+
+#pragma endregion
+
 #pragma region Shaders
 
 // Vertex Shader in GLSL
@@ -79,12 +99,6 @@ public:
 	}
 };
 
-/*
-* Needed to calculate Fresnel 0 element
-*/
-vec3 operator/(vec3 num, vec3 denom) {
-	return vec3(num.x / denom.x, num.y / denom.y, num.z / denom.z);
-}
 
 /*
 * A reflective material can be described with

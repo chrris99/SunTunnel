@@ -113,7 +113,7 @@ public:
 	Material* getMaterial() { return material; }
 
 	void setPosition(const vec3& pos) { position = pos; }
-	void setNormal(const vec3& n) { normal = n; }
+	void setNormal(const vec3& n) { normal = normalize(n); }
 	void setMaterial(Material* mat) { material = mat; }
 };
 
@@ -127,13 +127,13 @@ public:
 
 class QuadricIntersectable : public Intersectable {
 protected:
-	mat4 Q;				// Symmetric matrix, representing a quadric object (transformed and scaled)
+	mat4 tfQ;				// Symmetric matrix, representing a quadric object (transformed and scaled)
 
 public:
-	float f(vec4 r) { return dot(r * Q, r); }
+	float f(vec4 r) { return dot(r * tfQ, r); }
 
 	vec3 gradf(vec4 r) {
-		vec4 g = r * Q * 2.0f;
+		vec4 g = r * tfQ * 2.0f;
 		return vec3{ g.x, g.y, g.z };
 	}
 };
@@ -176,8 +176,29 @@ class Ellipsoid : public QuadricIntersectable {
 private:
 
 public:
-	Ellipsoid(const vec3& _center, const vec3& _params) {
+	Ellipsoid(const vec3& center, const vec3& params, Material* _material) {
 
+		material = _material;
+
+		mat4 Q = { {1 / params.x * params.x, 0, 0, 0},
+				   {0, 1 / params.y * params.y, 0, 0},
+				   {0, 0, 1 / params.z * params.z, 0},
+				   {0, 0, 0, -1}
+		};
+
+		mat4 TInv = { {1, 0, 0, 0},
+					  {0, 1, 0, 0},
+					  {0, 0, 1, 0},
+					  {-center.x, -center.y, -center.z, 1}
+		};
+
+		mat4 TInvt = { {1, 0, 0, -center.x },
+					   { 0, 1, 0, -center.y},
+					   { 0, 0, 1, -center.z},
+					   { 0, 0, 0, 1}
+		};
+
+		tfQ = TInv * Q * TInvt;
 	}
 
 	Hit intersect(const Ray& ray) override {
@@ -186,16 +207,111 @@ public:
 		vec4 S = { ray.getStart().x, ray.getStart().y, ray.getStart().z, 1 };
 		vec4 D = { ray.getDir().x, ray.getDir().y, ray.getDir().z, 0 };
 
-		float a = dot(D * Q, D);
-		float b = dot(D * Q, S) + dot(S * Q, D);
-		float c = dot(S * Q, S);
+		float a = dot(D * tfQ, D);
+		float b = dot(D * tfQ, S) + dot(S * tfQ, D);
+		float c = dot(S * tfQ, S);
 
 		float discriminant = b * b - 4.0f * a * c;
 		if (discriminant < 0) return hit;
 
 		float t1 = (-b + sqrtf(discriminant)) / (2.0f * a);
-		float t2;
+		float t2 = (-b - sqrtf(discriminant)) / (2.0f * a);
 
+		if (t1 <= 0) return hit;
+
+		hit.t = (t2 > 0) ? t2 : t1;
+		hit.setPosition(ray.getStart() + ray.getDir() * hit.t); // ray(t) = start + dir * t
+		hit.setNormal(gradf(vec4{ hit.getPosition().x, hit.getPosition().y, hit.getPosition().z, 1 }));
+		hit.setMaterial(material);
+
+		return hit;
+	}
+};
+
+struct Cylinder : public Intersectable {
+	vec4 r;
+	vec3 s;
+	vec3 t;
+
+
+	Cylinder(vec3 r, vec3 s, vec3 t, Material* _material) {
+		this->r.x = r.x;
+		this->r.y = r.y;
+		this->r.z = r.z;
+		this->r.w = 1;
+		this->s = s;
+		this->t = t;
+		material = _material;
+	}
+
+	mat4 Q() {
+		return mat4(vec4(1 / (r.x * r.x), 0, 0, 0),
+			vec4(0, 0, 0, 0),
+			vec4(0, 0, 1 / (r.z * r.z), 0),
+			vec4(0, 0, 0, -1));
+	}
+
+	mat4 T() {
+		return mat4(vec4(s.x, 0, 0, 0),
+			vec4(0, s.y, 0, 0),
+			vec4(0, 0, s.z, 0),
+			vec4(t.x, t.y, t.z, 1));
+	}
+
+	mat4 Tinv() {
+		return mat4(vec4(1 / s.x, 0, 0, 0),
+			vec4(0, 1 / s.y, 0, 0),
+			vec4(0, 0, 1 / s.z, 0),
+			vec4(-(t.x / s.x), -(t.y / s.y), -(t.z / s.z), 1));
+	}
+
+	mat4 Tinvt() {
+		return mat4(vec4(1 / s.x, 0, 0, -(t.x / s.x)),
+			vec4(0, 1 / s.y, 0, -(t.y / s.y)),
+			vec4(0, 0, 1 / s.z, -(t.z / s.z)),
+			vec4(0, 0, 0, 1));
+	}
+
+	mat4 M() {
+		return Tinv() * Q() * Tinvt();
+	}
+	/*
+	float f(vec4 r) {
+		return dot(r * Q(), r);
+	}
+	*/
+
+	vec3 gradf(vec4 r) {
+		vec4 g = r * M() * 2;
+		return normalize(vec3(g.x, g.y, g.z));
+	}
+
+	Hit intersect(const Ray& ray) {
+		Hit hit;
+		Hit nonhit;
+
+		vec4 D = vec4(ray.getDir().x, ray.getDir().y, ray.getDir().z, 0);
+		vec4 S = vec4(ray.getStart().x, ray.getStart().y, ray.getStart().z, 1);
+		float a = dot(D * M(), D);
+		float b = dot(D * M(), S) + dot(S * M(), D);
+		float c = dot(S * M(), S);
+
+		float discr = b * b - 4.0f * a * c;
+		if (discr < 0) return nonhit;
+		float sqrt_discr = sqrtf(discr);
+		float t1 = (-b + sqrt_discr) / 2.0f / a;    // t1 >= t2 for sure
+		float t2 = (-b - sqrt_discr) / 2.0f / a;
+		if (t1 <= 0) return nonhit;
+		hit.t = (t2 > 0) ? t2 : t1;
+		hit.setPosition(ray.getStart() + ray.getDir() * hit.t);
+		if (hit.getPosition().y > 0.2f || hit.getPosition().y < -0.5f) {
+			hit.t = t1;
+			hit.setPosition(ray.getStart() + ray.getDir() * hit.t);
+			if (hit.getPosition().y > 0.2f || hit.getPosition().y < -0.5f) return nonhit;
+		}
+		hit.setNormal(gradf(vec4(hit.getPosition().x, hit.getPosition().y, hit.getPosition().z, 1)));
+		hit.setMaterial(material);
+		return hit;
 	}
 };
 
@@ -240,7 +356,7 @@ private:
 public:
 	void build() {
 		// Create camera
-		vec3 eye = vec3{ 0, 1, 0 };
+		vec3 eye = vec3{ 0, 0, 2 };
 		vec3 vup = vec3{ 0, 1, 0 };
 		vec3 lookat = vec3{ 0, 0, 0 };
 		float fov = 45 * M_PI / 180;
@@ -248,7 +364,7 @@ public:
 
 		// Create lights
 		ambientLight = vec3{ 0.4f, 0.4f, 0.4f };
-		lights.push_back(new Light(vec3(0, 0, 0), vec3(2, 2, 2)));
+		//lights.push_back(new Light(vec3(-1, -1, 0), vec3(1, 1, 1)));
 
 		// Create materials
 		vec3 kd(0.3f, 0.2f, 0.1f);
@@ -256,7 +372,7 @@ public:
 		Material* material = new RoughMaterial(kd, ks, 50);
 
 		// Create objects
-		objects.push_back(new Sphere(vec3(0, 1, 0), 1, material));
+		objects.push_back(new Cylinder(vec3(1, 0, 1), vec3(0.1f, 0.1f, 0.1f), vec3(-0.4f, 0, -0.3f), material));
 	}
 
 	void render(std::vector<vec4>& image) {

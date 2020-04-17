@@ -17,6 +17,8 @@
 
 #include "framework.h"
 
+#pragma region Shaders
+
 // Vertex Shader in GLSL
 const char* vertexSource = R"(
 	#version 330
@@ -41,21 +43,32 @@ const char* fragmentSource = R"(
 	}
 )";
 
-// CONSTANTS ----------------
-const float epsilon = 0.0001f;
-// --------------------------
+#pragma endregion
 
+#pragma region Constants
+
+const float epsilon = 0.0001f;
+
+#pragma endregion
+
+#pragma region Material
 
 enum MaterialType { ROUGH, REFLECTIVE};
 
 class Material {
 public:
+	// Type of the material can be rough or reflective, this determines the BRDF model
 	MaterialType type;
 	vec3 ka, kd, ks, f0;
 	float shine;
 
 	Material(MaterialType _type) : type(_type) { }
 };
+
+/*
+*
+*
+*/
 
 class RoughMaterial : public Material {
 public:
@@ -66,10 +79,17 @@ public:
 	}
 };
 
+/*
+* Needed to calculate Fresnel 0 element
+*/
 vec3 operator/(vec3 num, vec3 denom) {
 	return vec3(num.x / denom.x, num.y / denom.y, num.z / denom.z);
 }
 
+/*
+* A reflective material can be described with
+*
+*/
 class ReflectiveMaterial : Material {
 public:
 	ReflectiveMaterial(vec3 n, vec3 kappa) : Material(REFLECTIVE) {
@@ -77,6 +97,8 @@ public:
 		f0 = ((n - one) * (n - one) + kappa * kappa) / ((n + one) * (n + one) + kappa * kappa);
 	}
 };
+
+#pragma endregion
 
 /*
 * Represents a light beam
@@ -180,9 +202,9 @@ public:
 
 		material = _material;
 
-		mat4 Q = { {1 / params.x * params.x, 0, 0, 0},
-				   {0, 1 / params.y * params.y, 0, 0},
-				   {0, 0, 1 / params.z * params.z, 0},
+		mat4 Q = { {1 / (params.x * params.x), 0, 0, 0},
+				   {0, 1 / (params.y * params.y), 0, 0},
+				   {0, 0, 1 / (params.z * params.z), 0},
 				   {0, 0, 0, -1}
 		};
 
@@ -234,7 +256,7 @@ struct Cylinder : public Intersectable {
 	vec3 t;
 
 
-	Cylinder(vec3 r, vec3 s, vec3 t, Material* _material) {
+	Cylinder(vec3 r, vec3 t, Material* _material) {
 		this->r.x = r.x;
 		this->r.y = r.y;
 		this->r.z = r.z;
@@ -252,23 +274,23 @@ struct Cylinder : public Intersectable {
 	}
 
 	mat4 T() {
-		return mat4(vec4(s.x, 0, 0, 0),
-			vec4(0, s.y, 0, 0),
-			vec4(0, 0, s.z, 0),
+		return mat4(vec4(1, 0, 0, 0),
+			vec4(0, 1, 0, 0),
+			vec4(0, 0, 1, 0),
 			vec4(t.x, t.y, t.z, 1));
 	}
 
 	mat4 Tinv() {
-		return mat4(vec4(1 / s.x, 0, 0, 0),
-			vec4(0, 1 / s.y, 0, 0),
-			vec4(0, 0, 1 / s.z, 0),
-			vec4(-(t.x / s.x), -(t.y / s.y), -(t.z / s.z), 1));
+		return mat4(vec4(1, 0, 0, 0),
+			vec4(0, 1, 0, 0),
+			vec4(0, 0, 1, 0),
+			vec4(-t.x, -t.y, -t.z, 1));
 	}
 
 	mat4 Tinvt() {
-		return mat4(vec4(1 / s.x, 0, 0, -(t.x / s.x)),
-			vec4(0, 1 / s.y, 0, -(t.y / s.y)),
-			vec4(0, 0, 1 / s.z, -(t.z / s.z)),
+		return mat4(vec4(1 , 0, 0, -t.x),
+			vec4(0, 1 , 0, -t.y),
+			vec4(0, 0, 1, -t.z),
 			vec4(0, 0, 0, 1));
 	}
 
@@ -364,7 +386,6 @@ public:
 
 		// Create lights
 		ambientLight = vec3{ 0.4f, 0.4f, 0.4f };
-		//lights.push_back(new Light(vec3(-1, -1, 0), vec3(1, 1, 1)));
 
 		// Create materials
 		vec3 kd(0.3f, 0.2f, 0.1f);
@@ -372,7 +393,8 @@ public:
 		Material* material = new RoughMaterial(kd, ks, 50);
 
 		// Create objects
-		objects.push_back(new Cylinder(vec3(1, 0, 1), vec3(0.1f, 0.1f, 0.1f), vec3(-0.4f, 0, -0.3f), material));
+		objects.push_back(new Cylinder(vec3(0.2, 0, 1), vec3(1, 0, 0), material));
+		objects.push_back(new Ellipsoid(vec3(0, 0, 0), vec3(0.2, 0.5, 0.5), material));
 	}
 
 	void render(std::vector<vec4>& image) {

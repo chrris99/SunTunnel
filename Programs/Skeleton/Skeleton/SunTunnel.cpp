@@ -142,6 +142,10 @@ namespace Materials {
 	RoughMaterial* BLUE(const float& shine = 50) {
 		return new RoughMaterial(vec3{ 0.2f, 0.2f, 0.6f }, vec3{ 1, 1, 1 }, shine);
 	}
+
+	RoughMaterial* PURPLE(const float& shine = 50) {
+		return new RoughMaterial(vec3(0.4, 0.2, 0.4), vec3(1, 1, 1), shine);
+	}
 }
 
 #pragma endregion
@@ -394,11 +398,9 @@ private:
 	}
 
 	vec3 trace(const Ray& ray, int depth = 0) {
-
-		if (depth > MAX_DEPTH) return ambientLight;
-
 		Hit hit = firstIntersect(ray);
-		if (hit.t < 0) return ambientLight;
+		if (hit.t < 0 || depth > MAX_DEPTH) return ambientLight + lights[0]->Le *powf(dot(ray.dir, lights[0]->direction), 10);
+
 		vec3 outRadiance = { 0, 0, 0 };
 
 		if (hit.material->type == ROUGH) {
@@ -441,7 +443,7 @@ private:
 public:
 	void build() {
 		// Create camera
-		vec3 eye = vec3{ -1.8, 0, 0 };
+		vec3 eye = vec3{ -1.8, 0.5, 0 };
 		vec3 vup = vec3{ 0, 0, 1 };
 		vec3 lookat = vec3{ 0, 0, 0 };
 		float fov = 60 * M_PI / 180;
@@ -449,18 +451,20 @@ public:
 
 		// Create lights
 		ambientLight = vec3{ 0.33f, 0.51f, 0.68f }; // SKY
-		lights.push_back(new Light(vec3(0, 0, 1.6), vec3(1, 1, 1)));
+		lights.push_back(new Light(vec3(10, 0, 10), vec3(1, 1, 1)));
 
 		// Create objects
-		objects.push_back(new Sphere(vec3(1, 0, 0.1), 0.2, vec3(0, 0, 0), Materials::GOLD()));
-		//objects.push_back(new Sphere(vec3(2, 0.7, -0.2), 0.5, vec3(0, 0, 0), Materials::LIGHTGREEN()));
 
 		objects.push_back(new Ellipsoid(vec3(0, 0, 0), vec3(2, 2, 1), vec3(1, -1.0, 0.95), Materials::BROWN()));
-		objects.push_back(new Ellipsoid(vec3(0.7, -0.2, -0.6), vec3(0.2, 0.2, 0.4), vec3(0, -0.9, -0.2), Materials::ALUMINIUM()));
-		objects.push_back(new Ellipsoid(vec3(0.7, 0.3, -0.6), vec3(0.2, 0.2, 0.3), vec3(0, -0.7, -0.35), Materials::BLUE()));
-		objects.push_back(new Paraboloid(vec3(1.5, -1.0, 0), vec3(0.5, 0.5, 1), vec3(1, -0.95, 1), Materials::GOLD()));
+		objects.push_back(new Ellipsoid(vec3(0.6, 0.3, -0.55), vec3(0.2, 0.2, 0.4), vec3(0, 0, 0), Materials::ALUMINIUM()));
+		objects.push_back(new Ellipsoid(vec3(0.35, -0.1, -0.6), vec3(0.2, 0.2, 0.4), vec3(0, 0, 0), Materials::BLUE()));
+		objects.push_back(new Paraboloid(vec3(1.2, -1.2, 0), vec3(0.5, 0.5, 1), vec3(1, -1.0, 1), Materials::GOLD()));
 		objects.push_back(new Hyperboloid(vec3(0, 0, 0.95), vec3(0.625, 0.625, 1), vec3(1, 0.95, 2.5), Materials::SILVER()));
-	
+		objects.push_back(new Ellipsoid(vec3(0.35, -0.1, -0.05), vec3(0.2, 0.2, 0.2), vec3(0, 0, 0), 
+			new RoughMaterial(vec3(0.3, 0.4, 0.9), vec3(1.0, 1.0, 1.0), 50),
+			new RoughMaterial(vec3(0.9, 0.4, 0.3), vec3(1.0, 1.0, 1.0), 50)));
+		objects.push_back(new Hyperboloid(vec3(1.7, 0.5, 0.3), vec3(0.3, 0.3, 0.5), vec3(1, -1, 1), Materials::PURPLE()));
+
 		// Generate sample points on hyperboloid surface
 		for (int i = 0; i < 10; i++) {
 			for (int j = 0; j < 10; j++) {
@@ -481,6 +485,7 @@ public:
 
 	void render(std::vector<vec4>& image) {
 		for (int Y = 0; Y < windowHeight; Y++) {
+#pragma omp parallel for
 			for (int X = 0; X < windowWidth; X++) {
 				vec3 color = trace(camera.getRay(X, Y));
 				image[Y * windowWidth + X] = vec4(color.x, color.y, color.z, 1);

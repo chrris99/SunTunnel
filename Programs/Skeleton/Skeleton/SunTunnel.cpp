@@ -109,6 +109,21 @@ struct ReflectiveMaterial : Material {
 	}
 };
 
+namespace Materials {
+	ReflectiveMaterial* GOLD() {
+		return new ReflectiveMaterial(vec3(0.17, 0.35, 1.5), vec3(3.1, 2.7, 1.9));
+	}
+
+	ReflectiveMaterial* SILVER() {
+		return new ReflectiveMaterial(vec3(0.14, 0.16, 0.13), vec3(4.1, 2.3, 3.1));
+	}
+
+	RoughMaterial* BROWN() {
+		vec3 kd1(0.3f, 0.2f, 0.1f), kd2(0.1f, 0.2f, 0.3f), ks(1, 1, 1);
+		return new RoughMaterial(kd1, ks, 50);
+	}
+}
+
 #pragma endregion
 
 #pragma region Light
@@ -157,14 +172,11 @@ class QuadricIntersectable {
 protected:
 	mat4 Q;					// Symmetric matrix, representing a quadric object (transformed)
 	Material* material;		// Material of the quadric object
+	Material* texture;		// Optional texture of the quadric object
 	
 	const mat4& translate(const mat4& m, const vec3& t) {
 		mat4 invTransM = InverseTranslateMatrix(t);
 		return invTransM * m * transpose(invTransM);
-	}
-
-	const mat4& rotate(const mat4& m, const vec3& t) {
-
 	}
 
 	vec3 gradf(vec4 r) {
@@ -178,9 +190,10 @@ public:
 
 class Sphere final : public QuadricIntersectable {
 public:
-	Sphere(const vec3& _center, float radius, Material* _material, Material* _material2 = nullptr) {
+	Sphere(const vec3& _center, float radius, Material* _material, Material* _texture = nullptr) {
 		
 		material = _material;
+		texture = _texture;
 
 		mat4 untransformedQ = {
 			{1 / (radius * radius), 0, 0, 0},
@@ -189,7 +202,7 @@ public:
 			{0, 0, 0, -1}
 		};
 
-		Q = translate(untransformedQ, _center);
+		this->Q = translate(untransformedQ, _center);
 	}
 
 	Hit intersect(const Ray& ray) override final {
@@ -214,6 +227,12 @@ public:
 		hit.position = ray.start + ray.dir * hit.t; // ray(t) = start + dir * t
 		hit.normal = (gradf(vec4{ hit.position.x, hit.position.y, hit.position.z, 1 }));
 		hit.material = material;
+		if (texture) { // texturing
+			double u = acos(hit.normal.y) / M_PI;
+			double v = (atan2(hit.normal.z, hit.normal.x) / M_PI + 1) / 2;
+			int U = (int)(u * 25), V = (int)(v * 50);
+			if (U % 2 ^ V % 2) hit.material = texture;
+		}	
 
 		return hit;
 	}
@@ -221,9 +240,10 @@ public:
 
 class Ellipsoid final : public QuadricIntersectable {
 public:
-	Ellipsoid(const vec3& center, const vec3& params, Material* _material) {
+	Ellipsoid(const vec3& center, const vec3& params, Material* _material, const float* fromZ = nullptr, float* toZ = nullptr, Material* _texture = nullptr) {
 
 		material = _material;
+		texture = _texture;
 
 		mat4 untransformedQ = { 
 			{1 / (params.x * params.x), 0, 0, 0},
@@ -255,9 +275,73 @@ public:
 
 		hit.t = (t2 > 0) ? t2 : t1;
 		hit.position = ray.start + ray.dir * hit.t; // ray(t) = start + dir * t
+
+		if (hit.position.z > -0.35f || hit.position.z < -0.85) {
+			hit.t = t1;
+			hit.position = ray.start + ray.dir * hit.t;
+			if (hit.position.z > -0.35f || hit.position.z < -0.85) {
+				hit.t = -1;  return hit;
+			}
+		}
+
 		hit.normal = (gradf(vec4{ hit.position.x, hit.position.y, hit.position.z, 1 }));
 		hit.material = material;
+		if (texture) { // texturing
+			double u = acos(hit.normal.y) / M_PI;
+			double v = (atan2(hit.normal.z, hit.normal.x) / M_PI + 1) / 2;
+			int U = (int)(u * 6), V = (int)(v * 8);
+			if (U % 2 ^ V % 2) hit.material = texture;
+		}
 
+		return hit;
+	}
+};
+
+class Cylinder final : public QuadricIntersectable {
+public:
+	Cylinder(Material* material) {
+
+	}
+};
+//const float& fromY, const float& toY =
+class Hyperboloid : public QuadricIntersectable {
+public:
+	Hyperboloid(const vec3& center, const vec3& params, Material* _material) {
+		
+		material = _material;
+
+		mat4 untransformedQ = {
+			{1 / (params.x * params.x), 0, 0, 0},
+			{0, 1 / (params.y * params.y), 0, 0},
+			{0, 0, -1 / (params.z * params.z), 0},
+			{0, 0, 0, -1}
+		};
+
+		this->Q = translate(untransformedQ, center);
+	}
+
+	Hit intersect(const Ray& ray) override final {
+		Hit hit; // Ray parameter t = -1
+
+		vec4 S = { ray.start.x, ray.start.y, ray.start.z, 1 };
+		vec4 D = { ray.dir.x, ray.dir.y, ray.dir.z, 0 };
+
+		float a = dot(D * Q, D);
+		float b = dot(D * Q, S) + dot(S * Q, D);
+		float c = dot(S * Q, S);
+
+		float discriminant = b * b - 4.0f * a * c;
+		if (discriminant < 0) return hit;
+
+		float t1 = (-b + sqrtf(discriminant)) / (2.0f * a);
+		float t2 = (-b - sqrtf(discriminant)) / (2.0f * a);
+
+		if (t1 <= 0) return hit;
+
+		hit.t = (t2 > 0) ? t2 : t1;
+		hit.position = ray.start + ray.dir * hit.t; // ray(t) = start + dir * t
+		hit.normal = (gradf(vec4{ hit.position.x, hit.position.y, hit.position.z, 1 }));
+		hit.material = material;
 		return hit;
 	}
 };
@@ -480,7 +564,7 @@ private:
 public:
 	void build() {
 		// Create camera
-		vec3 eye = vec3{ -3.5, 0, 0 };
+		vec3 eye = vec3{ -1.8, 0, 0 };
 		vec3 vup = vec3{ 0, 0, 1 };
 		vec3 lookat = vec3{ 0, 0, 0 };
 		float fov = 45 * M_PI / 180;
@@ -488,21 +572,26 @@ public:
 
 		// Create lights
 		ambientLight = vec3{ 0.4f, 0.4f, 0.4f };
-		lights.push_back(new Light(vec3(-3.5, 0, 0), vec3(2, 2, 2)));
+		lights.push_back(new Light(vec3(-1.8, 0, 0), vec3(1, 1, 1)));
 
 		// Create materials
-		vec3 kd1(0.3f, 0.2f, 0.1f), kd2(0.1f, 0.2f, 0.3f), ks(2, 2, 2);
-		vec3 n(1, 1, 1), kappa(5, 4, 3);
-		Material* material1 = new RoughMaterial(kd1, ks, 50);
-		Material* gold = new ReflectiveMaterial(vec3(0.17, 0.35, 1.5), vec3(3.1, 2.7, 1.9));
-		Material* silver = new ReflectiveMaterial(vec3(0.14, 0.16, 0.13), vec3(4.1, 2.3, 3.1));
-		
+	
+
 		// Create objects
-		objects.push_back(new Sphere(vec3(-1.5, 0, 0), 0.2, gold));
-		objects.push_back(new Sphere(vec3(-1.5, 0, -0.5), 0.2, material1));
-		objects.push_back(new Sphere(vec3(-1.5, 0.3, 0), 0.1, silver));
-		objects.push_back(new Ellipsoid(vec3(-2.5, -0.1, 0), vec3(0.05, 0.05, 0.1), material1));
-		objects.push_back(new Paraboloid(vec3(0, 0, 0), vec3(1, 1, 0.5), material1));
+		/*objects.push_back(new Sphere(vec3(-1.5, 0, 0.5), 0.2, gold));
+		objects.push_back(new Sphere(vec3(0, 0.7, -0.5), 0.7, new RoughMaterial(vec3(0.2f, 0.5f, 0.3f), ks, 50),
+			new RoughMaterial(vec3(0.3, 0.5, 0.4), ks, 50)));
+		objects.push_back(new Sphere(vec3(0, 0.5, 0), 0.1, silver));
+		objects.push_back(new Ellipsoid(vec3(-2.5, -0.7, 0), vec3(0.05, 0.05, 0.1), gold));
+		objects.push_back(new Ellipsoid(vec3(-2.5, -2.7, 0), vec3(0.05, 0.05, 0.1), 
+			new RoughMaterial(vec3(0.3, 0.4, 0.9), ks, 50),
+			new RoughMaterial(vec3(0.9, 0.4, 0.3), ks, 50)));
+		objects.push_back(new Paraboloid(vec3(10, 0, 0), vec3(0.5, 0.5, 2), material1));
+		*/
+
+		//objects.push_back(new Ellipsoid(vec3(0, 0, 0), vec3(2, 2, 1), Materials::BROWN()));
+		objects.push_back(new Ellipsoid(vec3(0.7, -0.2, -0.6), vec3(0.2, 0.2, 0.4), Materials::GOLD()));
+		objects.push_back(new Ellipsoid(vec3(0.7, 0.3, -0.6), vec3(0.2, 0.2, 0.3), Materials::BROWN()));
 	}
 
 	void render(std::vector<vec4>& image) {

@@ -164,7 +164,7 @@ protected:
 	Material* material;		// Material of the quadric object
 	Material* texture;		// Optional texture of the quadric object
 	
-	const mat4& translate(const mat4& m, const vec3& t) {
+	const mat4 translate(const mat4& m, const vec3& t) {
 		mat4 invTransM = InverseTranslateMatrix(t);
 		return invTransM * m * transpose(invTransM);
 	}
@@ -221,25 +221,6 @@ public:
 	}
 };
 
-class Sphere final : public QuadricIntersectable {
-public:
-	Sphere(const vec3& _center, float radius, const vec3& _cut, Material* _material, Material* _texture = nullptr) {
-		
-		material = _material;
-		texture = _texture;
-		cut = _cut;
-
-		mat4 untransformedQ = {
-			{1 / (radius * radius), 0, 0, 0},
-			{0, 1 / (radius * radius), 0, 0},
-			{0, 0, 1 / (radius * radius), 0},
-			{0, 0, 0, -1}
-		};
-
-		this->Q = translate(untransformedQ, _center);
-	}
-};
-
 class Ellipsoid final : public QuadricIntersectable {
 public:
 	Ellipsoid(const vec3& center, const vec3& params, const vec3& _cut, Material* _material, Material* _texture = nullptr) {
@@ -261,17 +242,19 @@ public:
 
 class Cylinder final : public QuadricIntersectable {
 public:
-	Cylinder(Material* _material) {
-		/*material = _material;
+	Cylinder(const vec3& center, const vec3& params, const vec3& _cut, Material* _material) {
+		
+		material = _material;
+		cut = _cut;
 
 		mat4 untransformedQ = {
 			{1 / (params.x * params.x), 0, 0, 0},
+			{ 0, 1 / (params.y * params.y), 0, 0 },
 			{ 0, 0, 0, 0 },
-			{ 0, 0, 1 / (params.z * params.z), 0 },
 			{ 0, 0, 0, -1 }
 		};
 
-		this->Q = translate(untransformedQ, center);*/
+		this->Q = translate(untransformedQ, center);
 	}
 };
 
@@ -399,36 +382,41 @@ private:
 
 public:
 	void build() {
+
 		// Create camera
-		vec3 eye = vec3{ -1.8, 0.0, 0.0 };
+
+		vec3 eye = vec3{ -1.9, 0.0, 0.0 };
 		vec3 vup = vec3{ 0, 0, 1 };
 		vec3 lookat = vec3{ 0, 0, 0 };
-		float fov = 80 * M_PI / 180;
+		float fov = 70 * M_PI / 180;
 		camera.set(eye, lookat, vup, fov);
 
 		// Create lights
-		ambientLight = vec3{ 0.5, 0.5, 0.7 }; // SKY
-		lights.push_back(new Light(vec3(10, 0, 10), vec3(1, 1, 1)));
+
+		ambientLight = vec3{ 0.8, 1, 1 }; // SKY
+		lights.push_back(new Light(vec3(10, 0, 10), vec3(0.8, 0.8, 0.8)));
 
 		// Create materials
+
 		ReflectiveMaterial* GOLD = new ReflectiveMaterial(vec3{ 0.17f, 0.35f, 1.5f }, vec3{ 3.1f, 2.7f, 1.9f });
 		ReflectiveMaterial* SILVER = new ReflectiveMaterial(vec3{ 0.14f, 0.16f, 0.13f }, vec3{ 4.1f, 2.3f, 3.1f });
 		RoughMaterial* BROWN = new RoughMaterial(vec3{ 0.3f, 0.2f, 0.1f }, vec3{ 1, 1, 1 }, 50);
 		RoughMaterial* PURPLE = new RoughMaterial(vec3(0.4, 0.2, 0.4), vec3(1, 1, 1), 50);
 		RoughMaterial* BLUE = new RoughMaterial(vec3{ 0.2f, 0.2f, 0.6f }, vec3{ 1, 1, 1 }, 50);
+		RoughMaterial* GREEN = new RoughMaterial(vec3{ 0.4f, 0.6f, 0.1f }, vec3{ 1, 1, 1 }, 50);
 
 		// Create objects
 
 		objects.push_back(new Ellipsoid(vec3(0, 0, 0), vec3(2, 2, 1), vec3(1, -1.0, 0.95), BROWN));					// Room
 		objects.push_back(new Hyperboloid(vec3(0, 0, 0.95), vec3(0.625, 0.625, 1), vec3(1, 0.95, 2.5), SILVER));	// Sun tunnel
 
-		objects.push_back(new Ellipsoid(vec3(0.5, 0.4, -0.6), vec3(0.15, 0.15, 0.3), vec3(0, 0, 0), PURPLE));
+		objects.push_back(new Ellipsoid(vec3(0.3, 0.1, -0.6), vec3(0.15, 0.15, 0.3), vec3(0, 0, 0), PURPLE));
 		objects.push_back(new Ellipsoid(vec3(0.35, -0.8, -0.5), vec3(0.2, 0.2, 0.4), vec3(0, 0, 0), BLUE));
 		objects.push_back(new Paraboloid(vec3(1.0, -0.2, 0), vec3(0.5, 0.5, 0.4), vec3(1, -1.0, 1), GOLD));
-	
-		objects.push_back(new Ellipsoid(vec3(0.5, 0.4, -0.15), vec3(0.15, 0.15, 0.15), vec3(0, 0, 0), 
-			new RoughMaterial(vec3(0.3, 0.4, 0.9), vec3(1.0, 1.0, 1.0), 100),
-			new RoughMaterial(vec3(0.9, 0.4, 0.3), vec3(1.0, 1.0, 1.0), 100)));
+		//objects.push_back(new Hyperboloid(vec3(0.4, 0.9, -0.4), vec3(0.6, 0.4, 0.6), vec3(1, -1.0, 0.2), BLUE));
+		//objects.push_back(new Ellipsoid(vec3(0.2, 0.7, -0.8), vec3(0.1, 0.1, 0.1), vec3(0, 0, 0), 
+		//	new RoughMaterial(vec3(0.3, 0.4, 0.8), vec3(1.0, 1.0, 1.0), 200),
+		//	new RoughMaterial(vec3(0.8, 0.4, 0.3), vec3(1.0, 1.0, 1.0), 200)));
 
 		// Generate sample points on hyperboloid surface
 		for (int i = 0; i < 10; i++) {

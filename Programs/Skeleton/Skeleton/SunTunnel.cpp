@@ -511,25 +511,28 @@ private:
 public:
 	void build() {
 		// Create camera
-		vec3 eye = vec3{ -10, 0, 2 };
+		vec3 eye = vec3{ -1.8, 0, 0 };
 		vec3 vup = vec3{ 0, 0, 1 };
-		vec3 lookat = vec3{ 0, 0, 1 };
-		float fov = 45 * M_PI / 180;
+		vec3 lookat = vec3{ 0, 0, 0 };
+		float fov = 60 * M_PI / 180;
 		camera.set(eye, lookat, vup, fov);
 
 		// Create lights
 		ambientLight = vec3{ 0.4f, 0.4f, 0.4f };
-		lights.push_back(new Light(vec3(-1.8, 0, 0), vec3(1, 1, 1)));
+		lights.push_back(new Light(vec3(0, 0, 1.6), vec3(1, 1, 1)));
 
 		// Create objects
 		objects.push_back(new Sphere(vec3(1, 0, 0.1), 0.2, vec3(0, 0, 0), Materials::GOLD()));
-		objects.push_back(new Sphere(vec3(2, 0.7, -0.2), 0.5, vec3(0, 0, 0), Materials::LIGHTGREEN()));
+		//objects.push_back(new Sphere(vec3(2, 0.7, -0.2), 0.5, vec3(0, 0, 0), Materials::LIGHTGREEN()));
 
-		//objects.push_back(new Ellipsoid(vec3(0, 0, 0), vec3(2, 2, 1), vec3(1, -1.0, 0.95), Materials::BROWN()));
+		objects.push_back(new Ellipsoid(vec3(0, 0, 0), vec3(2, 2, 1), vec3(1, -1.0, 0.95), Materials::BROWN()));
 		objects.push_back(new Ellipsoid(vec3(0.7, -0.2, -0.6), vec3(0.2, 0.2, 0.4), vec3(0, -0.9, -0.2), Materials::ALUMINIUM()));
 		objects.push_back(new Ellipsoid(vec3(0.7, 0.3, -0.6), vec3(0.2, 0.2, 0.3), vec3(1, -0.7, -0.35), Materials::BLUE()));
 		objects.push_back(new Paraboloid(vec3(2.8, -1.0, 0), vec3(0.5, 0.5, 1), vec3(1, -0.95, 1), Materials::GOLD()));
-		//objects.push_back(new Hyperboloid(vec3(0, 0, 0.95), vec3(1.76, 1.76, 0.5), vec3(1, 0.95, 1.5), Materials::BLUE()));
+		objects.push_back(new Hyperboloid(vec3(0, 0, 0.95), vec3(0.625, 0.625, 1), vec3(1, 0.95, 2.5), Materials::SILVER()));
+	
+		// Generate sample points on hyperboloid surface
+
 	}
 
 	void render(std::vector<vec4>& image) {

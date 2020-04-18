@@ -30,6 +30,10 @@ vec3 operator/(const vec3& num, const vec3& denom) {
 	return vec3{ num.x / denom.x, num.y / denom.y, num.z / denom.z };
 }
 
+float distance(const vec3& p1, const vec3& p2) {
+	return sqrtf((p1.x - p2.x) * (p1.x - p2.x) + (p1.y - p2.y) * (p1.y - p2.y) + (p1.z - p2.z) * (p1.z - p2.z));
+}
+
 mat4 transpose(const mat4& m) {
 	mat4 mTranspose;
 	for (int i = 0; i < 4; i++) {
@@ -235,6 +239,7 @@ public:
 		}
 
 		hit.normal = (gradf(vec4{ hit.position.x, hit.position.y, hit.position.z, 1 }));
+		if (dot(hit.normal, ray.dir) > 0) hit.normal = hit.normal * (-1); // flip the normal, we are inside the sphere
 		hit.material = material;
 		if (texture) { // texturing
 			double u = acos(hit.normal.y) / M_PI;
@@ -398,7 +403,19 @@ private:
 
 		if (hit.material->type == ROUGH) {
 			outRadiance = hit.material->ka * ambientLight;
-			for (auto light : lights) {
+			for (auto samplePoint : lightSourceSamples) {
+				Ray shadowRay(hit.position + hit.normal * EPSILON, samplePoint);
+				float cosTheta = dot(hit.normal, samplePoint);
+				if (cosTheta > 0 && !shadowIntersect(shadowRay)) {
+					float cosa = dot(normalize(vec3{ 0, 0, 0 } -samplePoint), normalize(hit.position - samplePoint));
+					float omega = (2 * 0.625 * M_PI / lightSourceSamples.size()) * (cosa / powf(distance(hit.position, samplePoint), 2));
+					outRadiance = outRadiance + (trace(Ray(hit.position + hit.normal * EPSILON, samplePoint), depth + 1) * hit.material->kd * cosTheta) * omega;
+					vec3 halfway = normalize(-ray.dir + samplePoint);
+					float cosDelta = dot(hit.normal, halfway);
+					if (cosDelta > 0) outRadiance = outRadiance + trace(Ray(hit.position + hit.normal * EPSILON, samplePoint), depth + 1) * hit.material->ks * powf(cosDelta, hit.material->shine);
+				}
+			}
+			/*for (auto light : lights) {
 				Ray shadowRay(hit.position + hit.normal * EPSILON, light->direction);
 				float cosTheta = dot(hit.normal, light->direction);
 				if (cosTheta > 0 && !shadowIntersect(shadowRay)) {
@@ -407,12 +424,11 @@ private:
 					float cosDelta = dot(hit.normal, halfway);
 					if (cosDelta > 0) outRadiance = outRadiance + light->Le * hit.material->ks * powf(cosDelta, hit.material->shine);
 				}
-			}
+			}*/
 		}
 
 		if (hit.material->type == REFLECTIVE) {
 			vec3 reflectedDir = ray.dir - hit.normal * dot(hit.normal, ray.dir) * 2.0f;
-			// Belépési szög : Érkezési irány és a felületi normális közötti szög 
 			float cosa = -dot(ray.dir, hit.normal);
 			vec3 one = { 1,1,1 };
 			vec3 Fresnel = hit.material->F0 + (one - hit.material->F0) * pow(1 - cosa, 5);
@@ -432,7 +448,7 @@ public:
 		camera.set(eye, lookat, vup, fov);
 
 		// Create lights
-		ambientLight = vec3{ 0.4f, 0.4f, 0.4f };
+		ambientLight = vec3{ 0.33f, 0.51f, 0.68f }; // SKY
 		lights.push_back(new Light(vec3(0, 0, 1.6), vec3(1, 1, 1)));
 
 		// Create objects
@@ -441,11 +457,25 @@ public:
 
 		objects.push_back(new Ellipsoid(vec3(0, 0, 0), vec3(2, 2, 1), vec3(1, -1.0, 0.95), Materials::BROWN()));
 		objects.push_back(new Ellipsoid(vec3(0.7, -0.2, -0.6), vec3(0.2, 0.2, 0.4), vec3(0, -0.9, -0.2), Materials::ALUMINIUM()));
-		objects.push_back(new Ellipsoid(vec3(0.7, 0.3, -0.6), vec3(0.2, 0.2, 0.3), vec3(1, -0.7, -0.35), Materials::BLUE()));
-		objects.push_back(new Paraboloid(vec3(2.8, -1.0, 0), vec3(0.5, 0.5, 1), vec3(1, -0.95, 1), Materials::GOLD()));
+		objects.push_back(new Ellipsoid(vec3(0.7, 0.3, -0.6), vec3(0.2, 0.2, 0.3), vec3(0, -0.7, -0.35), Materials::BLUE()));
+		objects.push_back(new Paraboloid(vec3(1.5, -1.0, 0), vec3(0.5, 0.5, 1), vec3(1, -0.95, 1), Materials::GOLD()));
 		objects.push_back(new Hyperboloid(vec3(0, 0, 0.95), vec3(0.625, 0.625, 1), vec3(1, 0.95, 2.5), Materials::SILVER()));
 	
 		// Generate sample points on hyperboloid surface
+		for (int i = 0; i < 10; i++) {
+			for (int j = 0; j < 10; j++) {
+				float xCoord = -0.625 + i * 0.125;
+				float yCoord = -0.625 + j * 0.125;
+				if (xCoord * xCoord + yCoord * yCoord < 0.625 * 0.625) lightSourceSamples.push_back(vec3{ xCoord, yCoord, 0.95 });
+			}
+		}
+		int i = 1;
+		for (auto point : lightSourceSamples) {
+
+			printf("%d:\t%.4f,\t%.4f,\t%.4f\n", i, point.x, point.y, point.z);
+			i++;
+		}
+
 
 	}
 

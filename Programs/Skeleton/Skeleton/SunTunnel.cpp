@@ -113,41 +113,6 @@ struct ReflectiveMaterial : Material {
 	}
 };
 
-// Pre-defined reflective and rough materials
-namespace Materials {
-	ReflectiveMaterial* GOLD() {
-		return new ReflectiveMaterial(vec3{ 0.17f, 0.35f, 1.5f }, vec3{ 3.1f, 2.7f, 1.9f });
-	}
-
-	ReflectiveMaterial* SILVER() {
-		return new ReflectiveMaterial(vec3{ 0.14f, 0.16f, 0.13f }, vec3{ 4.1f, 2.3f, 3.1f });
-	}
-
-	ReflectiveMaterial* COPPER() {
-		return new ReflectiveMaterial(vec3{ 0.24f, 1.15f, 1.24f }, vec3{ 3.56f, 2.6f, 2.37f });
-	}
-
-	ReflectiveMaterial* ALUMINIUM() {
-		return new ReflectiveMaterial(vec3{ 1.53f, 0.91f, 0.61f }, vec3{ 7.66f, 6.35f, 5.38f });
-	}
-
-	RoughMaterial* BROWN(const float& shine = 50) {
-		return new RoughMaterial(vec3{ 0.3f, 0.2f, 0.1f }, vec3{ 1, 1, 1 }, shine);
-	}
-
-	RoughMaterial* LIGHTGREEN(const float& shine = 50) {
-		return new RoughMaterial(vec3{ 0.2f, 0.5f, 0.3f }, vec3{ 1, 1, 1 }, shine);
-	}
-
-	RoughMaterial* BLUE(const float& shine = 50) {
-		return new RoughMaterial(vec3{ 0.2f, 0.2f, 0.6f }, vec3{ 1, 1, 1 }, shine);
-	}
-
-	RoughMaterial* PURPLE(const float& shine = 50) {
-		return new RoughMaterial(vec3(0.4, 0.2, 0.4), vec3(1, 1, 1), shine);
-	}
-}
-
 #pragma endregion
 
 #pragma region Light
@@ -348,6 +313,7 @@ public:
 
 #pragma endregion
 
+
 #pragma region Camera and Scene
 
 class Camera {
@@ -406,27 +372,18 @@ private:
 		if (hit.material->type == ROUGH) {
 			outRadiance = hit.material->ka * ambientLight;
 			for (auto samplePoint : lightSourceSamples) {
-				Ray shadowRay(hit.position + hit.normal * EPSILON, samplePoint);
-				float cosTheta = dot(hit.normal, samplePoint);
+				vec3 rayDir = samplePoint - hit.position;
+				Ray shadowRay(hit.position + hit.normal * EPSILON, rayDir);
+				float cosTheta = dot(hit.normal, rayDir);
 				if (cosTheta > 0 && !shadowIntersect(shadowRay)) {
 					float cosa = dot(normalize(vec3{ 0, 0, 0 } -samplePoint), normalize(hit.position - samplePoint));
 					float omega = (2 * 0.625 * M_PI / lightSourceSamples.size()) * (cosa / powf(distance(hit.position, samplePoint), 2));
-					outRadiance = outRadiance + (trace(Ray(hit.position + hit.normal * EPSILON, samplePoint), depth + 1) * hit.material->kd * cosTheta) * omega;
-					vec3 halfway = normalize(-ray.dir + samplePoint);
+					outRadiance = outRadiance + (trace(Ray(hit.position + hit.normal * EPSILON, rayDir), depth + 1) * hit.material->kd * cosTheta) * omega;
+					vec3 halfway = normalize(-ray.dir + rayDir);
 					float cosDelta = dot(hit.normal, halfway);
-					if (cosDelta > 0) outRadiance = outRadiance + trace(Ray(hit.position + hit.normal * EPSILON, samplePoint), depth + 1) * hit.material->ks * powf(cosDelta, hit.material->shine);
+					if (cosDelta > 0) outRadiance = outRadiance + trace(Ray(hit.position + hit.normal * EPSILON, rayDir), depth + 1) * hit.material->ks * powf(cosDelta, hit.material->shine) * omega;
 				}
 			}
-			/*for (auto light : lights) {
-				Ray shadowRay(hit.position + hit.normal * EPSILON, light->direction);
-				float cosTheta = dot(hit.normal, light->direction);
-				if (cosTheta > 0 && !shadowIntersect(shadowRay)) {
-					outRadiance = outRadiance + light->Le * hit.material->kd * cosTheta;
-					vec3 halfway = normalize(-ray.dir + light->direction);
-					float cosDelta = dot(hit.normal, halfway);
-					if (cosDelta > 0) outRadiance = outRadiance + light->Le * hit.material->ks * powf(cosDelta, hit.material->shine);
-				}
-			}*/
 		}
 
 		if (hit.material->type == REFLECTIVE) {
@@ -443,27 +400,35 @@ private:
 public:
 	void build() {
 		// Create camera
-		vec3 eye = vec3{ -1.8, 0.5, 0 };
+		vec3 eye = vec3{ -1.8, 0.0, 0.0 };
 		vec3 vup = vec3{ 0, 0, 1 };
 		vec3 lookat = vec3{ 0, 0, 0 };
-		float fov = 60 * M_PI / 180;
+		float fov = 80 * M_PI / 180;
 		camera.set(eye, lookat, vup, fov);
 
 		// Create lights
-		ambientLight = vec3{ 0.33f, 0.51f, 0.68f }; // SKY
+		ambientLight = vec3{ 0.5, 0.5, 0.7 }; // SKY
 		lights.push_back(new Light(vec3(10, 0, 10), vec3(1, 1, 1)));
+
+		// Create materials
+		ReflectiveMaterial* GOLD = new ReflectiveMaterial(vec3{ 0.17f, 0.35f, 1.5f }, vec3{ 3.1f, 2.7f, 1.9f });
+		ReflectiveMaterial* SILVER = new ReflectiveMaterial(vec3{ 0.14f, 0.16f, 0.13f }, vec3{ 4.1f, 2.3f, 3.1f });
+		RoughMaterial* BROWN = new RoughMaterial(vec3{ 0.3f, 0.2f, 0.1f }, vec3{ 1, 1, 1 }, 50);
+		RoughMaterial* PURPLE = new RoughMaterial(vec3(0.4, 0.2, 0.4), vec3(1, 1, 1), 50);
+		RoughMaterial* BLUE = new RoughMaterial(vec3{ 0.2f, 0.2f, 0.6f }, vec3{ 1, 1, 1 }, 50);
 
 		// Create objects
 
-		objects.push_back(new Ellipsoid(vec3(0, 0, 0), vec3(2, 2, 1), vec3(1, -1.0, 0.95), Materials::BROWN()));
-		objects.push_back(new Ellipsoid(vec3(0.6, 0.3, -0.55), vec3(0.2, 0.2, 0.4), vec3(0, 0, 0), Materials::ALUMINIUM()));
-		objects.push_back(new Ellipsoid(vec3(0.35, -0.1, -0.6), vec3(0.2, 0.2, 0.4), vec3(0, 0, 0), Materials::BLUE()));
-		objects.push_back(new Paraboloid(vec3(1.2, -1.2, 0), vec3(0.5, 0.5, 1), vec3(1, -1.0, 1), Materials::GOLD()));
-		objects.push_back(new Hyperboloid(vec3(0, 0, 0.95), vec3(0.625, 0.625, 1), vec3(1, 0.95, 2.5), Materials::SILVER()));
-		objects.push_back(new Ellipsoid(vec3(0.35, -0.1, -0.05), vec3(0.2, 0.2, 0.2), vec3(0, 0, 0), 
-			new RoughMaterial(vec3(0.3, 0.4, 0.9), vec3(1.0, 1.0, 1.0), 50),
-			new RoughMaterial(vec3(0.9, 0.4, 0.3), vec3(1.0, 1.0, 1.0), 50)));
-		objects.push_back(new Hyperboloid(vec3(1.7, 0.5, 0.3), vec3(0.3, 0.3, 0.5), vec3(1, -1, 1), Materials::PURPLE()));
+		objects.push_back(new Ellipsoid(vec3(0, 0, 0), vec3(2, 2, 1), vec3(1, -1.0, 0.95), BROWN));					// Room
+		objects.push_back(new Hyperboloid(vec3(0, 0, 0.95), vec3(0.625, 0.625, 1), vec3(1, 0.95, 2.5), SILVER));	// Sun tunnel
+
+		objects.push_back(new Ellipsoid(vec3(0.5, 0.4, -0.6), vec3(0.15, 0.15, 0.3), vec3(0, 0, 0), PURPLE));
+		objects.push_back(new Ellipsoid(vec3(0.35, -0.8, -0.5), vec3(0.2, 0.2, 0.4), vec3(0, 0, 0), BLUE));
+		objects.push_back(new Paraboloid(vec3(1.0, -0.2, 0), vec3(0.5, 0.5, 0.4), vec3(1, -1.0, 1), GOLD));
+	
+		objects.push_back(new Ellipsoid(vec3(0.5, 0.4, -0.15), vec3(0.15, 0.15, 0.15), vec3(0, 0, 0), 
+			new RoughMaterial(vec3(0.3, 0.4, 0.9), vec3(1.0, 1.0, 1.0), 100),
+			new RoughMaterial(vec3(0.9, 0.4, 0.3), vec3(1.0, 1.0, 1.0), 100)));
 
 		// Generate sample points on hyperboloid surface
 		for (int i = 0; i < 10; i++) {
@@ -473,14 +438,6 @@ public:
 				if (xCoord * xCoord + yCoord * yCoord < 0.625 * 0.625) lightSourceSamples.push_back(vec3{ xCoord, yCoord, 0.95 });
 			}
 		}
-		int i = 1;
-		for (auto point : lightSourceSamples) {
-
-			printf("%d:\t%.4f,\t%.4f,\t%.4f\n", i, point.x, point.y, point.z);
-			i++;
-		}
-
-
 	}
 
 	void render(std::vector<vec4>& image) {

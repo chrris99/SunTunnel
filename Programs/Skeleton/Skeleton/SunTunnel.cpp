@@ -187,7 +187,7 @@ struct Light {
 class QuadricIntersectable {
 protected:
 	mat4 Q;					// Symmetric matrix, representing a quadric object (transformed)
-	vec3 cut;
+	vec3 cut;				// cut.x (0 or 1) - do we want to cut?, cut.y - from z, cut.z - to z
 	Material* material;		// Material of the quadric object
 	Material* texture;		// Optional texture of the quadric object
 	
@@ -233,7 +233,6 @@ public:
 				}
 			}
 		}
-
 
 		hit.normal = (gradf(vec4{ hit.position.x, hit.position.y, hit.position.z, 1 }));
 		hit.material = material;
@@ -284,17 +283,24 @@ public:
 
 		this->Q = translate(untransformedQ, center);
 	}
-
-
 };
 
 class Cylinder final : public QuadricIntersectable {
 public:
-	Cylinder(Material* material) {
+	Cylinder(Material* _material) {
+		/*material = _material;
 
+		mat4 untransformedQ = {
+			{1 / (params.x * params.x), 0, 0, 0},
+			{ 0, 0, 0, 0 },
+			{ 0, 0, 1 / (params.z * params.z), 0 },
+			{ 0, 0, 0, -1 }
+		};
+
+		this->Q = translate(untransformedQ, center);*/
 	}
 };
-//const float& fromY, const float& toY =
+
 class Hyperboloid : public QuadricIntersectable {
 public:
 	Hyperboloid(const vec3& center, const vec3& params, const vec3& _cut, Material* _material) {
@@ -505,9 +511,9 @@ private:
 public:
 	void build() {
 		// Create camera
-		vec3 eye = vec3{ -1.8, 0, 0 };
+		vec3 eye = vec3{ -10, 0, 2 };
 		vec3 vup = vec3{ 0, 0, 1 };
-		vec3 lookat = vec3{ 0, 0, 0 };
+		vec3 lookat = vec3{ 0, 0, 1 };
 		float fov = 45 * M_PI / 180;
 		camera.set(eye, lookat, vup, fov);
 
@@ -515,15 +521,15 @@ public:
 		ambientLight = vec3{ 0.4f, 0.4f, 0.4f };
 		lights.push_back(new Light(vec3(-1.8, 0, 0), vec3(1, 1, 1)));
 
-
-
 		// Create objects
 		objects.push_back(new Sphere(vec3(1, 0, 0.1), 0.2, vec3(0, 0, 0), Materials::GOLD()));
-		objects.push_back(new Sphere(vec3(2, 0.7, -0.5), 0.7, vec3(0, 0, 0), Materials::LIGHTGREEN()));
+		objects.push_back(new Sphere(vec3(2, 0.7, -0.2), 0.5, vec3(0, 0, 0), Materials::LIGHTGREEN()));
 
 		//objects.push_back(new Ellipsoid(vec3(0, 0, 0), vec3(2, 2, 1), vec3(1, -1.0, 0.95), Materials::BROWN()));
-		objects.push_back(new Ellipsoid(vec3(0.7, -0.2, -0.6), vec3(0.2, 0.2, 0.4), vec3(1, -0.9, -0.2), Materials::ALUMINIUM()));
+		objects.push_back(new Ellipsoid(vec3(0.7, -0.2, -0.6), vec3(0.2, 0.2, 0.4), vec3(0, -0.9, -0.2), Materials::ALUMINIUM()));
 		objects.push_back(new Ellipsoid(vec3(0.7, 0.3, -0.6), vec3(0.2, 0.2, 0.3), vec3(1, -0.7, -0.35), Materials::BLUE()));
+		objects.push_back(new Paraboloid(vec3(2.8, -1.0, 0), vec3(0.5, 0.5, 1), vec3(1, -0.95, 1), Materials::GOLD()));
+		//objects.push_back(new Hyperboloid(vec3(0, 0, 0.95), vec3(1.76, 1.76, 0.5), vec3(1, 0.95, 1.5), Materials::BLUE()));
 	}
 
 	void render(std::vector<vec4>& image) {

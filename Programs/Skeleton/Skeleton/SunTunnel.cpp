@@ -301,7 +301,7 @@ public:
 	}
 };
 
-class Hyperboloid : public QuadricIntersectable {
+class Hyperboloid final : public QuadricIntersectable {
 public:
 	Hyperboloid(const vec3& center, const vec3& params, const vec3& _cut, Material* _material) {
 		
@@ -336,97 +336,7 @@ public:
 		Q = translate(untransformedQ, center);
 	}
 };
-/*
-class Cylinder : public QuadricIntersectable {
-public:
-	Cylinder(const vec3& center, const vec3& params, Material* _material) {
 
-		material = _material;
-
-		mat4 untransformedQ = {
-			{1 / (params.x * params.x), 0, 0, 0},
-			{ 0, 0, 0, 0 },
-			{ 0, 0, 1 / (params.z * params.z), 0 },
-			{ 0, 0, 0, -1 } 
-		};
-
-		this->Q = transform(untransformedQ, center);
-	}
-
-	Hit intersect(const Ray& ray) {
-		Hit hit;
-		Hit nonhit;
-
-		vec4 D = vec4(ray.getDir().x, ray.getDir().y, ray.getDir().z, 0);
-		vec4 S = vec4(ray.getStart().x, ray.getStart().y, ray.getStart().z, 1);
-		float a = dot(D * Q, D);
-		float b = dot(D * Q, S) + dot(S * Q, D);
-		float c = dot(S * Q, S);
-
-		float discr = b * b - 4.0f * a * c;
-		if (discr < 0) return nonhit;
-		float sqrt_discr = sqrtf(discr);
-		float t1 = (-b + sqrt_discr) / 2.0f / a;    // t1 >= t2 for sure
-		float t2 = (-b - sqrt_discr) / 2.0f / a;
-		if (t1 <= 0) return nonhit;
-		hit.t = (t2 > 0) ? t2 : t1;
-		hit.setPosition(ray.getStart() + ray.getDir() * hit.t);
-		if (hit.getPosition().y > 0.2f || hit.getPosition().y < -0.5f) {
-			hit.t = t1;
-			hit.setPosition(ray.getStart() + ray.getDir() * hit.t);
-			if (hit.getPosition().y > 0.2f || hit.getPosition().y < -0.5f) return nonhit;
-		}
-		hit.setNormal(gradf(vec4(hit.getPosition().x, hit.getPosition().y, hit.getPosition().z, 1)));
-		hit.setMaterial(material);
-		return hit;
-	}
-};
-
-class OneSheetHyperbolid : public QuadricIntersectable {
-public:
-	OneSheetHyperbolid(const vec3& center, const vec3& params, Material* _material) {
-		
-		material = _material;
-
-		mat4 untransformedQ = {
-			{1 / (params.x * params.x), 0, 0, 0},
-			{0, 1 / (params.y * params.y), 0, 0},
-			{0, 0, 1 / (params.z * params.z), 0},
-			{0, 0, 0, -1}
-		};
-
-		this->Q = transform(untransformedQ, center);
-	}
-
-	Hit intersect(const Ray& ray) override {
-		Hit hit;
-		Hit nonhit;
-
-		vec4 D = vec4(ray.getDir().x, ray.getDir().y, ray.getDir().z, 0);
-		vec4 S = vec4(ray.getStart().x, ray.getStart().y, ray.getStart().z, 1);
-		float a = dot(D * Q, D);
-		float b = dot(D * Q, S) + dot(S * Q, D);
-		float c = dot(S * Q, S);
-
-		float discr = b * b - 4.0f * a * c;
-		if (discr < 0) return nonhit;
-		float sqrt_discr = sqrtf(discr);
-		float t1 = (-b + sqrt_discr) / 2.0f / a;    // t1 >= t2 for sure
-		float t2 = (-b - sqrt_discr) / 2.0f / a;
-		if (t1 <= 0) return nonhit;
-		hit.t = (t2 > 0) ? t2 : t1;
-		hit.setPosition(ray.getStart() + ray.getDir() * hit.t);
-		if (hit.getPosition().y > 0.2f || hit.getPosition().y < -0.5f) {
-			hit.t = t1;
-			hit.setPosition(ray.getStart() + ray.getDir() * hit.t);
-			if (hit.getPosition().y > 0.2f || hit.getPosition().y < -0.5f) return nonhit;
-		}
-		hit.setNormal(gradf(vec4(hit.getPosition().x, hit.getPosition().y, hit.getPosition().z, 1)));
-		hit.setMaterial(material);
-		return hit;
-	}
-};
-*/
 #pragma endregion
 
 #pragma region Camera and Scene
@@ -450,14 +360,18 @@ public:
 		return Ray(eye, dir);
 	}
 };
+float randomUniform(const float& from, const float& to) {
+	return (float)rand() / (RAND_MAX + 1.0) * (to - from) + from;
+}
 
 class Scene {
 private:
 	std::vector<QuadricIntersectable*> objects;
 	std::vector<Light*> lights;
 	Camera camera;
-	vec3 ambientLight;
+	vec3 ambientLight;	// sky + sun?
 
+	std::vector<vec3> lightSourceSamples;
 
 	Hit firstIntersect(const Ray& ray) {
 		Hit bestHit;

@@ -17,10 +17,17 @@
 
 #include "framework.h"
 
+#pragma region Constants
+
+const float EPSILON = 0.0001f;
+const int MAX_DEPTH = 5;
+
+#pragma endregion
+
 #pragma region Operators
 
-vec3 operator/(vec3 num, vec3 denom) {
-	return vec3(num.x / denom.x, num.y / denom.y, num.z / denom.z);
+vec3 operator/(const vec3& num, const vec3& denom) {
+	return vec3{ num.x / denom.x, num.y / denom.y, num.z / denom.z };
 }
 
 mat4 transpose(const mat4& m) {
@@ -73,77 +80,57 @@ const char* fragmentSource = R"(
 
 #pragma endregion
 
-#pragma region Constants
-
-const float epsilon = 0.0001f;
-
-#pragma endregion
-
 #pragma region Material
 
 enum MaterialType { ROUGH, REFLECTIVE};
 
-class Material {
-public:
-	// Type of the material can be rough or reflective, this determines the BRDF model
-	MaterialType type;
-	vec3 ka, kd, ks, f0;
+struct Material {
+	MaterialType type;	// ROUGH or REFLECTIVE
+	vec3 ka, kd, ks;
+	vec3 F0;
 	float shine;
 
-	Material(MaterialType _type) : type(_type) { }
+	Material(MaterialType t) { type = t; }
 };
 
-/*
-*
-*
-*/
-
-class RoughMaterial : public Material {
-public:
+struct RoughMaterial : Material {
 	RoughMaterial(vec3 _kd, vec3 _ks, float _shine) : Material(ROUGH) {
 		ka = _kd * M_PI;
 		kd = _kd;
 		ks = _ks;
+		shine = _shine;
 	}
 };
 
-
-/*
-* A reflective material can be described with
-*
-*/
-class ReflectiveMaterial : Material {
-public:
+struct ReflectiveMaterial : Material {
 	ReflectiveMaterial(vec3 n, vec3 kappa) : Material(REFLECTIVE) {
 		vec3 one = { 1, 1, 1 };
-		f0 = ((n - one) * (n - one) + kappa * kappa) / ((n + one) * (n + one) + kappa * kappa);
+		F0 = ((n - one) * (n - one) + kappa * kappa) / ((n + one) * (n + one) + kappa * kappa);
 	}
 };
 
 #pragma endregion
 
+#pragma region Light
+
 /*
 * Represents a light beam
 */
-class Ray {
+struct Ray {
 	vec3 start, dir;
-
-public:
-	Ray(const vec3& _start, const vec3& _dir) : start(_start), dir(normalize(_dir)) { }
-	
-	vec3 getStart() const { return start; }
-	vec3 getDir() const { return dir; }
+	Ray(const vec3& _start, const vec3& _dir) {
+		start = _start;
+		dir = normalize(_dir);
+	}
 };
 
 /*
 * Represents an object-ray intersection
 */
-class Hit {
+struct Hit {
+	float t;	// Ray parameter (ray(t) = start + dir * t)
 	vec3 position, normal;
 	Material* material;
-
-public:
-	float t;	// Ray parameter (ray(t) = start + dir * t)
 
 	/*
 	* Default constructor sets the ray parameter to -1,
@@ -151,100 +138,65 @@ public:
 	*/
 
 	Hit() : t(-1) { }
-
-	vec3& getPosition() { return position; }
-	vec3& getNormal() { return normal; }
-	Material* getMaterial() { return material; }
-
-	void setPosition(const vec3& pos) { position = pos; }
-	void setNormal(const vec3& n) { normal = normalize(n); }
-	void setMaterial(Material* mat) { material = mat; }
 };
+
+struct Light {
+	vec3 direction, Le;
+
+	Light(vec3 _direction, vec3 _Le) {
+		direction = normalize(_direction);
+		Le = _Le;
+	}
+};
+
+#pragma endregion
 
 #pragma region Objects
 
-class Intersectable {
+class QuadricIntersectable {
 protected:
-	Material* material;
+	mat4 Q;					// Symmetric matrix, representing a quadric object (transformed)
+	Material* material;		// Material of the quadric object
+	
+	const mat4& translate(const mat4& m, const vec3& t) {
+		mat4 invTransM = InverseTranslateMatrix(t);
+		return invTransM * m * transpose(invTransM);
+	}
+
+	const mat4& rotate(const mat4& m, const vec3& t) {
+
+	}
+
+	vec3 gradf(vec4 r) {
+		vec4 g = r * Q * 2.0f;
+		return normalize(vec3{ g.x, g.y, g.z });
+	}
 
 public:
 	virtual Hit intersect(const Ray& ray) = 0;
 };
 
-class QuadricIntersectable : public Intersectable {
-protected:
-	const mat4& transform(const mat4& m, const vec3& trf) {
-		return InverseTranslateMatrix(trf) * m * transpose(InverseTranslateMatrix(trf));
-	}
-
-	mat4 Q;		// Symmetric matrix, representing a quadric object (transformed and scaled)
-
+class Sphere final : public QuadricIntersectable {
 public:
-	// Calculates the value of the implicit function in a given point
-	float f(vec4 r) { return dot(r * Q, r); }
-
-	// Returns the normalized gradient vector in a given point
-	vec3 gradf(vec4 r) {
-		vec4 g = r * Q * 2.0f;
-		return normalize(vec3{ g.x, g.y, g.z });
-	}
-};
-
-class Sphere : public Intersectable {
-private:
-	vec3 center;
-	float radius;
-
-public:
-	Sphere(const vec3& _center, float _radius, Material* _material) {
-		center = _center;
-		radius = _radius;
-		material = _material;
-	}
-
-	Hit intersect(const Ray& ray) override {
-		Hit hit;
-		vec3 dist = ray.getStart() - center;
-		float a = dot(ray.getDir(), ray.getDir());
-		float b = dot(dist, ray.getDir()) * 2.0f;
-		float c = dot(dist, dist) - radius * radius;
-		float discr = b * b - 4.0f * a * c;
-		if (discr < 0) return hit;
-		float sqrt_discr = sqrtf(discr);
-		float t1 = (-b + sqrt_discr) / 2.0f / a;	// t1 >= t2 for sure
-		float t2 = (-b - sqrt_discr) / 2.0f / a;
-		if (t1 <= 0) return hit;
-
-		hit.t = (t2 > 0) ? t2 : t1;
-		hit.setPosition(ray.getStart() + ray.getDir() * hit.t);
-		hit.setNormal((hit.getPosition() - center) * (1.0f / radius));
-		hit.setMaterial(material);
-
-		return hit;
-	}
-};
-
-class Ellipsoid : public QuadricIntersectable {
-public:
-	Ellipsoid(const vec3& center, const vec3& params, Material* _material) {
-
+	Sphere(const vec3& _center, float radius, Material* _material, Material* _material2 = nullptr) {
+		
 		material = _material;
 
-		mat4 untransformedQ = { 
-			{1 / (params.x * params.x), 0, 0, 0},
-			{0, 1 / (params.y * params.y), 0, 0},
-			{0, 0, 1 / (params.z * params.z), 0},
+		mat4 untransformedQ = {
+			{1 / (radius * radius), 0, 0, 0},
+			{0, 1 / (radius * radius), 0, 0},
+			{0, 0, 1 / (radius * radius), 0},
 			{0, 0, 0, -1}
 		};
 
-		this->Q = transform(untransformedQ, center);
+		Q = translate(untransformedQ, _center);
 	}
 
-	Hit intersect(const Ray& ray) override {
+	Hit intersect(const Ray& ray) override final {
 		Hit hit; // Ray parameter t = -1
 
-		vec4 S = { ray.getStart().x, ray.getStart().y, ray.getStart().z, 1 };
-		vec4 D = { ray.getDir().x, ray.getDir().y, ray.getDir().z, 0 };
+		vec4 S = { ray.start.x, ray.start.y, ray.start.z, 1 };
+		vec4 D = { ray.dir.x, ray.dir.y, ray.dir.z, 0 };
 
 		float a = dot(D * Q, D);
 		float b = dot(D * Q, S) + dot(S * Q, D);
@@ -259,23 +211,100 @@ public:
 		if (t1 <= 0) return hit;
 
 		hit.t = (t2 > 0) ? t2 : t1;
-		hit.setPosition(ray.getStart() + ray.getDir() * hit.t); // ray(t) = start + dir * t
-		
-		if (hit.getPosition().z > 0.8f) {
-			hit.t = t1;
-			hit.setPosition(ray.getStart() + ray.getDir() * hit.t);
-			if (hit.getPosition().z > 0.8f) {
-				hit.t = -1;
-				return hit;
-			}
-		}
-		hit.setNormal(gradf(vec4{ hit.getPosition().x, hit.getPosition().y, hit.getPosition().z, 1 }));
-		hit.setMaterial(material);
+		hit.position = ray.start + ray.dir * hit.t; // ray(t) = start + dir * t
+		hit.normal = (gradf(vec4{ hit.position.x, hit.position.y, hit.position.z, 1 }));
+		hit.material = material;
 
 		return hit;
 	}
 };
 
+class Ellipsoid final : public QuadricIntersectable {
+public:
+	Ellipsoid(const vec3& center, const vec3& params, Material* _material) {
+
+		material = _material;
+
+		mat4 untransformedQ = { 
+			{1 / (params.x * params.x), 0, 0, 0},
+			{0, 1 / (params.y * params.y), 0, 0},
+			{0, 0, 1 / (params.z * params.z), 0},
+			{0, 0, 0, -1}
+		};
+
+		this->Q = translate(untransformedQ, center);
+	}
+
+	Hit intersect(const Ray& ray) override final {
+		Hit hit; // Ray parameter t = -1
+
+		vec4 S = { ray.start.x, ray.start.y, ray.start.z, 1 };
+		vec4 D = { ray.dir.x, ray.dir.y, ray.dir.z, 0 };
+
+		float a = dot(D * Q, D);
+		float b = dot(D * Q, S) + dot(S * Q, D);
+		float c = dot(S * Q, S);
+
+		float discriminant = b * b - 4.0f * a * c;
+		if (discriminant < 0) return hit;
+
+		float t1 = (-b + sqrtf(discriminant)) / (2.0f * a);
+		float t2 = (-b - sqrtf(discriminant)) / (2.0f * a);
+
+		if (t1 <= 0) return hit;
+
+		hit.t = (t2 > 0) ? t2 : t1;
+		hit.position = ray.start + ray.dir * hit.t; // ray(t) = start + dir * t
+		hit.normal = (gradf(vec4{ hit.position.x, hit.position.y, hit.position.z, 1 }));
+		hit.material = material;
+
+		return hit;
+	}
+};
+
+class Paraboloid final : public QuadricIntersectable {
+public:
+	Paraboloid(const vec3& center, const vec3& params, Material* _material) {
+
+		material = _material;
+		
+		mat4 untransformedQ = {
+			{ 1 / params.x, 0, 0, 0 },
+			{ 0, 1 / params.y, 0, 0 },
+			{ 0, 0, 0, params.z / 2 },
+			{ 0, 0, params.z / 2, 0 }
+		};
+
+		Q = translate(untransformedQ, center);
+	}
+
+	Hit intersect(const Ray& ray) override final {
+		Hit hit; // Ray parameter t = -1
+
+		vec4 S = { ray.start.x, ray.start.y, ray.start.z, 1 };
+		vec4 D = { ray.dir.x, ray.dir.y, ray.dir.z, 0 };
+
+		float a = dot(D * Q, D);
+		float b = dot(D * Q, S) + dot(S * Q, D);
+		float c = dot(S * Q, S);
+
+		float discriminant = b * b - 4.0f * a * c;
+		if (discriminant < 0) return hit;
+
+		float t1 = (-b + sqrtf(discriminant)) / (2.0f * a);
+		float t2 = (-b - sqrtf(discriminant)) / (2.0f * a);
+
+		if (t1 <= 0) return hit;
+
+		hit.t = (t2 > 0) ? t2 : t1;
+		hit.position = ray.start + ray.dir * hit.t; // ray(t) = start + dir * t
+		hit.normal = (gradf(vec4{ hit.position.x, hit.position.y, hit.position.z, 1 }));
+		hit.material = material;
+
+		return hit;
+	}
+};
+/*
 class Cylinder : public QuadricIntersectable {
 public:
 	Cylinder(const vec3& center, const vec3& params, Material* _material) {
@@ -367,6 +396,9 @@ public:
 };
 
 #pragma endregion
+*/
+
+#pragma region Camera and Scene
 
 class Camera {
 private:
@@ -388,23 +420,62 @@ public:
 	}
 };
 
-class Light {
-private:
-	vec3 direction, Le;
-
-public:
-	Light(vec3 _direction, vec3 _Le) : direction(normalize(_direction)), Le(_Le) { }
-
-	vec3& getDirection() { return direction; }
-	vec3& getLe() { return Le; }
-};
-
 class Scene {
 private:
-	std::vector<Intersectable*> objects;
+	std::vector<QuadricIntersectable*> objects;
 	std::vector<Light*> lights;
 	Camera camera;
 	vec3 ambientLight;
+
+
+	Hit firstIntersect(const Ray& ray) {
+		Hit bestHit;
+		for (auto object : objects) {
+			Hit hit = object->intersect(ray); //  hit.t < 0 if no intersection
+			if (hit.t > 0 && (bestHit.t < 0 || hit.t < bestHit.t))  bestHit = hit;
+		}
+		if (dot(ray.dir, bestHit.normal) > 0) bestHit.normal = bestHit.normal * (-1);
+		return bestHit;
+	}
+
+	bool shadowIntersect(const Ray& ray) {	// for directional lights
+		for (auto object : objects) if (object->intersect(ray).t > 0) return true;
+		return false;
+	}
+
+	vec3 trace(const Ray& ray, int depth = 0) {
+
+		if (depth > MAX_DEPTH) return ambientLight;
+
+		Hit hit = firstIntersect(ray);
+		if (hit.t < 0) return ambientLight;
+		vec3 outRadiance = { 0, 0, 0 };
+
+		if (hit.material->type == ROUGH) {
+			outRadiance = hit.material->ka * ambientLight;
+			for (auto light : lights) {
+				Ray shadowRay(hit.position + hit.normal * EPSILON, light->direction);
+				float cosTheta = dot(hit.normal, light->direction);
+				if (cosTheta > 0 && !shadowIntersect(shadowRay)) {
+					outRadiance = outRadiance + light->Le * hit.material->kd * cosTheta;
+					vec3 halfway = normalize(-ray.dir + light->direction);
+					float cosDelta = dot(hit.normal, halfway);
+					if (cosDelta > 0) outRadiance = outRadiance + light->Le * hit.material->ks * powf(cosDelta, hit.material->shine);
+				}
+			}
+		}
+
+		if (hit.material->type == REFLECTIVE) {
+			vec3 reflectedDir = ray.dir - hit.normal * dot(hit.normal, ray.dir) * 2.0f;
+			// Belépési szög : Érkezési irány és a felületi normális közötti szög 
+			float cosa = -dot(ray.dir, hit.normal);
+			vec3 one = { 1,1,1 };
+			vec3 Fresnel = hit.material->F0 + (one - hit.material->F0) * pow(1 - cosa, 5);
+			outRadiance = outRadiance + trace(Ray(hit.position + hit.normal * EPSILON, reflectedDir), depth + 1) * Fresnel;
+		}
+
+		return outRadiance;
+	}
 
 public:
 	void build() {
@@ -417,22 +488,21 @@ public:
 
 		// Create lights
 		ambientLight = vec3{ 0.4f, 0.4f, 0.4f };
-		lights.push_back(new Light(vec3(0.1, 0, 0.85), vec3(1, 1, 1)));
+		lights.push_back(new Light(vec3(-3.5, 0, 0), vec3(2, 2, 2)));
 
 		// Create materials
-		vec3 kd(0.6f, 0.1f, 0.4f);
-		vec3 ks(0, 2, 2);
-		Material* material = new RoughMaterial(kd, ks, 50);
-		Material* material2 = new RoughMaterial(vec3(0.2f, 0.2f, 0.4f), ks, 50);
-
+		vec3 kd1(0.3f, 0.2f, 0.1f), kd2(0.1f, 0.2f, 0.3f), ks(2, 2, 2);
+		vec3 n(1, 1, 1), kappa(5, 4, 3);
+		Material* material1 = new RoughMaterial(kd1, ks, 50);
+		Material* gold = new ReflectiveMaterial(vec3(0.17, 0.35, 1.5), vec3(3.1, 2.7, 1.9));
+		Material* silver = new ReflectiveMaterial(vec3(0.14, 0.16, 0.13), vec3(4.1, 2.3, 3.1));
+		
 		// Create objects
-		//objects.push_back(new Cylinder(vec3(0.5, 0, 0), vec3(0.2, 0, 0.3), material));
-		objects.push_back(new Ellipsoid(vec3(0, 0, -0.55), vec3(0.2, 0.1, 0.3), material));
-		objects.push_back(new Ellipsoid(vec3(-1, 0.1, -0.7), vec3(0.2, 0.1, 0.1), material));
-		//objects.push_back(new Cylinder(vec3(-0.1, 0.5, 0), vec3(2, 0.2, 0.4), material));
-
-		// Ellipsoid room
-		objects.push_back(new Ellipsoid(vec3(0, 0, 0), vec3(4, 0.85, 0.85), material2));
+		objects.push_back(new Sphere(vec3(-1.5, 0, 0), 0.2, gold));
+		objects.push_back(new Sphere(vec3(-1.5, 0, -0.5), 0.2, material1));
+		objects.push_back(new Sphere(vec3(-1.5, 0.3, 0), 0.1, silver));
+		objects.push_back(new Ellipsoid(vec3(-2.5, -0.1, 0), vec3(0.05, 0.05, 0.1), material1));
+		objects.push_back(new Paraboloid(vec3(0, 0, 0), vec3(1, 1, 0.5), material1));
 	}
 
 	void render(std::vector<vec4>& image) {
@@ -443,40 +513,9 @@ public:
 			}
 		}
 	}
-
-	Hit firstIntersect(const Ray& ray) {
-		Hit bestHit;
-		for (Intersectable* object : objects) {
-			Hit hit = object->intersect(ray); //  hit.t < 0 if no intersection
-			if (hit.t > 0 && (bestHit.t < 0 || hit.t < bestHit.t))  bestHit = hit;
-		}
-		if (dot(ray.getDir(), bestHit.getNormal()) > 0) bestHit.setNormal(bestHit.getNormal() * (-1));
-		return bestHit;
-	}
-
-	bool shadowIntersect(const Ray& ray) {	// for directional lights
-		for (Intersectable* object : objects) if (object->intersect(ray).t > 0) return true;
-		return false;
-	}
-
-	vec3 trace(Ray ray, int depth = 0) {
-		Hit hit = firstIntersect(ray);
-		if (hit.t < 0) return ambientLight;
-		vec3 outRadiance = hit.getMaterial()->ka * ambientLight;
-		// Lokális illumináció
-		for (Light* light : lights) {
-			Ray shadowRay(hit.getPosition() + hit.getNormal() * epsilon, light->getDirection());
-			float cosTheta = dot(hit.getNormal(), light->getDirection());
-			if (cosTheta > 0 && !shadowIntersect(shadowRay)) {	// shadow computation
-				outRadiance = outRadiance + light->getLe() * hit.getMaterial()->kd * cosTheta;
-				vec3 halfway = normalize(-ray.getDir() + light->getDirection());
-				float cosDelta = dot(hit.getNormal(), halfway);
-				if (cosDelta > 0) outRadiance = outRadiance + light->getLe() * hit.getMaterial()->ks * powf(cosDelta, hit.getMaterial()->shine);
-			}
-		}
-		return outRadiance;
-	}
 };
+
+#pragma endregion
 
 GPUProgram gpuProgram;
 Scene scene;

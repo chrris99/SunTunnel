@@ -90,7 +90,7 @@ enum MaterialType { ROUGH, REFLECTIVE};
 
 struct Material {
 	MaterialType type;	// ROUGH or REFLECTIVE
-	vec3 ka, kd, ks;
+	vec3 ka, kd, ks, n, kappa;
 	vec3 F0;
 	float shine;
 
@@ -107,7 +107,9 @@ struct RoughMaterial : Material {
 };
 
 struct ReflectiveMaterial : Material {
-	ReflectiveMaterial(vec3 n, vec3 kappa) : Material(REFLECTIVE) {
+	ReflectiveMaterial(vec3 _n, vec3 _kappa) : Material(REFLECTIVE) {
+		n = _n;
+		kappa = _kappa;
 		vec3 one = { 1, 1, 1 };
 		F0 = ((n - one) * (n - one) + kappa * kappa) / ((n + one) * (n + one) + kappa * kappa);
 	}
@@ -141,7 +143,7 @@ struct Hit {
 	* meaning that there was no (valuable) intersection
 	*/
 
-	Hit() : t(-1) { }
+	Hit() : t(-1) { material = nullptr; }
 };
 
 struct Light {
@@ -297,7 +299,7 @@ public:
 #pragma endregion
 
 
-#pragma region Camera and Scene
+#pragma region Camera
 
 class Camera {
 private:
@@ -318,18 +320,22 @@ public:
 		return Ray(eye, dir);
 	}
 };
+
+#pragma endregion
+
 float randomUniform(const float& from, const float& to) {
 	return (float)rand() / (RAND_MAX + 1.0) * (to - from) + from;
 }
 
+#pragma region Scene
+
 class Scene {
 private:
-	std::vector<QuadricIntersectable*> objects;
-	std::vector<Light*> lights;
-	Camera camera;
-	vec3 ambientLight;	// sky + sun?
-
-	std::vector<vec3> lightSourceSamples;
+	std::vector<QuadricIntersectable*> objects;	// Objects in the virtual world
+	std::vector<Light*> lights;					// Lights in the virtual world (sunlight)
+	Camera camera;								// Camera recording the virtual world
+	vec3 ambientLight;							// Skylight
+	std::vector<vec3> lightSourceSamples;		// Point samples on the sun tunnel, representing the light sources
 
 	Hit firstIntersect(const Ray& ray) {
 		Hit bestHit;
@@ -393,8 +399,8 @@ public:
 
 		// Create lights
 
-		ambientLight = vec3{ 0.7, 0.9, 0.9 };									// Ambient skylight
-		lights.push_back(new Light(vec3(-20, 0, 2), vec3(1, 1, 1)));			// Sunlight
+		ambientLight = vec3{ 0.8, 0.85, 0.85 };										// Ambient skylight
+		lights.push_back(new Light(vec3(-20, 0, 3), vec3(0.7, 0.7, 0.7)));			// Sunlight
 
 		// Create materials
 
@@ -403,7 +409,7 @@ public:
 		RoughMaterial* BROWN = new RoughMaterial(vec3{ 0.3f, 0.2f, 0.1f }, vec3{ 1, 1, 1 }, 50);
 		RoughMaterial* PURPLE = new RoughMaterial(vec3(0.4, 0.2, 0.4), vec3(1, 1, 1), 50);
 		RoughMaterial* BLUE = new RoughMaterial(vec3{ 0.2f, 0.2f, 0.6f }, vec3{ 1, 1, 1 }, 50);
-		RoughMaterial* GREEN = new RoughMaterial(vec3{ 0.4f, 0.6f, 0.1f }, vec3{ 1, 1, 1 }, 50);
+		RoughMaterial* GREEN = new RoughMaterial(vec3{ 0.2f, 0.3f, 0.1f }, vec3{ 1, 1, 1 }, 50);
 		RoughMaterial* ORANGE = new RoughMaterial(vec3{ 0.4f, 0.2f, 0.0f}, vec3{ 1, 1, 1 }, 50);
 
 		// Create objects
@@ -411,11 +417,11 @@ public:
 		objects.push_back(new Ellipsoid(vec3(0, 0, 0), vec3(2, 2, 1), vec3(1, -1.0, 0.95), ORANGE));				// Room
 		objects.push_back(new Hyperboloid(vec3(0, 0, 0.95), vec3(0.625, 0.625, 1), vec3(1, 0.95, 2.5), SILVER));	// Sun tunnel
 
-		objects.push_back(new Ellipsoid(vec3(0.3, 0.2, -0.65), vec3(0.15, 0.15, 0.3), vec3(0, 0, 0), PURPLE));
-		objects.push_back(new Ellipsoid(vec3(0.35, -0.8, -0.5), vec3(0.2, 0.2, 0.4), vec3(0, 0, 0), BLUE));
-		objects.push_back(new Paraboloid(vec3(1.0, -0.2, 0), vec3(0.5, 0.5, 0.4), vec3(1, -1.0, 1), GOLD));
-		//objects.push_back(new Hyperboloid(vec3(0.4, 0.9, -0.4), vec3(0.6, 0.4, 0.6), vec3(1, -1.0, 0.2), BLUE));
-		objects.push_back(new Ellipsoid(vec3(0.3, 0.2, -0.25), vec3(0.1, 0.1, 0.1), vec3(0, 0, 0), 
+		objects.push_back(new Ellipsoid(vec3(0.1, 0.3, -0.65), vec3(0.15, 0.15, 0.3), vec3(0, 0, 0), PURPLE));
+		objects.push_back(new Ellipsoid(vec3(0.15, -0.7, -0.5), vec3(0.2, 0.2, 0.4), vec3(0, 0, 0), BLUE));
+		objects.push_back(new Paraboloid(vec3(0.8, -0.1, 0), vec3(0.5, 0.5, 0.4), vec3(1, -1.0, 1), GOLD));
+		objects.push_back(new Hyperboloid(vec3(1.2, 0.7, -0.45), vec3(0.1, 0.1, 0.3), vec3(1, -0.9, 0), GREEN));
+		objects.push_back(new Ellipsoid(vec3(0.1, 0.3, -0.25), vec3(0.1, 0.1, 0.1), vec3(0, 0, 0), 
 			new RoughMaterial(vec3(0.15, 0.3, 0.4), vec3(1.0, 1.0, 1.0), 50),
 			new RoughMaterial(vec3(0.4, 0.2, 0.15), vec3(1.0, 1.0, 1.0), 50)));
 

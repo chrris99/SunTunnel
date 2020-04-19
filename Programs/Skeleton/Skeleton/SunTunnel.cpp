@@ -333,7 +333,10 @@ private:
 	}
 
 	bool shadowIntersect(const Ray& ray) {	// for directional lights
-		for (auto object : objects) if (object->intersect(ray).t > 0) return true;
+		for (auto object : objects) {
+			Hit hit = object->intersect(ray);
+			if (hit.t > 0 && hit.position.z < 0.95) return true;
+		}
 		return false;
 	}
 
@@ -377,10 +380,10 @@ public:
 
 		// Create camera
 
-		vec3 eye = vec3{ -1.5, -0.3, -0.5 };
+		vec3 eye = vec3{ -1.8, 0, 0 };
 		vec3 vup = vec3{ 0, 0, 1 };
-		vec3 lookat = vec3{ 0, 0, -0.5 };
-		float fov = 60 * M_PI / 180;
+		vec3 lookat = vec3{ 0, 0, 0 };
+		float fov = 70 * M_PI / 180;
 		camera.set(eye, lookat, vup, fov);
 
 		// Create lights
@@ -390,11 +393,11 @@ public:
 
 		// Create materials
 
-		Material* GOLD = new ReflectiveMaterial(vec3{ 0.17f, 0.35f, 1.5f }, vec3{ 3.1f, 2.7f, 1.9f });
-		Material* SILVER = new ReflectiveMaterial(vec3{ 0.14f, 0.16f, 0.13f }, vec3{ 4.1f, 2.3f, 3.1f });
+		Material* GOLD = new ReflectiveMaterial(vec3(0.17, 0.35, 1.5), vec3(3.1, 2.7, 1.9));
+		Material* SILVER = new ReflectiveMaterial(vec3(0.14, 0.16, 0.13), vec3(4.1, 2.3, 3.1));
 		Material* PURPLE = new RoughMaterial(vec3(0.4, 0.2, 0.4), vec3(1, 1, 1), 50);
-		Material* BLUE = new RoughMaterial(vec3{ 0.2f, 0.2f, 0.6f }, vec3{ 1, 1, 1 }, 50);
-		Material* ORANGE = new RoughMaterial(vec3{ 0.4f, 0.2f, 0.0f }, vec3{ 1, 1, 1 }, 50);
+		Material* BLUE = new RoughMaterial(vec3(0.2, 0.2, 0.6), vec3(1, 1, 1), 50);
+		Material* ORANGE = new RoughMaterial(vec3(0.4f, 0.2, 0), vec3(1, 1, 1), 50);
 
 		// Create objects
 

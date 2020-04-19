@@ -54,6 +54,11 @@ mat4 InverseTranslateMatrix(const vec3& t) {
 	};
 }
 
+
+float randomUniform(const float& from, const float& to) {
+	return (float)rand() / (RAND_MAX + 1.0) * (to - from) + from;
+}
+
 #pragma endregion
 
 #pragma region Shaders
@@ -84,7 +89,7 @@ const char* fragmentSource = R"(
 
 #pragma endregion
 
-#pragma region Material
+#pragma region Materials
 
 enum MaterialType { ROUGH, REFLECTIVE};
 
@@ -114,6 +119,16 @@ struct ReflectiveMaterial : Material {
 		F0 = ((n - one) * (n - one) + kappa * kappa) / ((n + one) * (n + one) + kappa * kappa);
 	}
 };
+
+// Create materials
+
+Material* GOLD		=	new ReflectiveMaterial(vec3{ 0.17f, 0.35f, 1.5f }, vec3{ 3.1f, 2.7f, 1.9f });
+Material* SILVER	=	new ReflectiveMaterial(vec3{ 0.14f, 0.16f, 0.13f }, vec3{ 4.1f, 2.3f, 3.1f });
+Material* BROWN		=	new RoughMaterial(vec3{ 0.3f, 0.2f, 0.1f }, vec3{ 1, 1, 1 }, 50);
+Material* PURPLE	=	new RoughMaterial(vec3(0.4, 0.2, 0.4), vec3(1, 1, 1), 50);
+Material* BLUE		=	new RoughMaterial(vec3{ 0.2f, 0.2f, 0.6f }, vec3{ 1, 1, 1 }, 50);
+Material* GREEN		=	new RoughMaterial(vec3{ 0.1f, 0.2f, 0.05f }, vec3{ 1, 1, 1 }, 50);
+Material* ORANGE	=	new RoughMaterial(vec3{ 0.4f, 0.2f, 0.0f }, vec3{ 1, 1, 1 }, 50);
 
 #pragma endregion
 
@@ -218,7 +233,7 @@ public:
 		if (texture) { // texturing
 			double u = acos(hit.normal.y) / M_PI;
 			double v = (atan2(hit.normal.z, hit.normal.x) / M_PI + 1) / 2;
-			int U = (int)(u * 6), V = (int)(v * 8);
+			int U = (int)(u * 12), V = (int)(v * 15);
 			if (U % 2 ^ V % 2) hit.material = texture;
 		}
 
@@ -301,7 +316,6 @@ public:
 
 #pragma endregion
 
-
 #pragma region Camera
 
 class Camera {
@@ -325,10 +339,6 @@ public:
 };
 
 #pragma endregion
-
-float randomUniform(const float& from, const float& to) {
-	return (float)rand() / (RAND_MAX + 1.0) * (to - from) + from;
-}
 
 #pragma region Scene
 
@@ -358,7 +368,7 @@ private:
 	vec3 trace(const Ray& ray, int depth = 0) {
 		Hit hit = firstIntersect(ray);
 
-		if (hit.t < 0 || depth > MAX_DEPTH) return ambientLight + lights[0]->Le *powf(dot(ray.dir, lights[0]->direction), 5);
+		if (hit.t < 0 || depth > MAX_DEPTH) return ambientLight + lights[0]->Le *powf(dot(ray.dir, lights[0]->direction), 10);
 		vec3 outRadiance = { 0, 0, 0 };
 
 		if (hit.material->type == ROUGH) {
@@ -403,29 +413,23 @@ public:
 		// Create lights
 
 		ambientLight = vec3{ 0.8, 1, 1 };											// Ambient skylight
-		lights.push_back(new Light(vec3(-50, 0, 2), vec3(0.5, 0.5, 0.5)));			// Sunlight
-
-		// Create materials
-
-		ReflectiveMaterial* GOLD = new ReflectiveMaterial(vec3{ 0.17f, 0.35f, 1.5f }, vec3{ 3.1f, 2.7f, 1.9f });
-		ReflectiveMaterial* SILVER = new ReflectiveMaterial(vec3{ 0.14f, 0.16f, 0.13f }, vec3{ 4.1f, 2.3f, 3.1f });
-		RoughMaterial* BROWN = new RoughMaterial(vec3{ 0.3f, 0.2f, 0.1f }, vec3{ 1, 1, 1 }, 50);
-		RoughMaterial* PURPLE = new RoughMaterial(vec3(0.4, 0.2, 0.4), vec3(1, 1, 1), 50);
-		RoughMaterial* BLUE = new RoughMaterial(vec3{ 0.2f, 0.2f, 0.6f }, vec3{ 1, 1, 1 }, 100);
-		RoughMaterial* GREEN = new RoughMaterial(vec3{ 0.2f, 0.3f, 0.1f }, vec3{ 1, 1, 1 }, 50);
-		RoughMaterial* ORANGE = new RoughMaterial(vec3{ 0.4f, 0.2f, 0.0f}, vec3{ 1, 1, 1 }, 50);
+		lights.push_back(new Light(vec3(10, 0, 3), vec3(0.6, 0.6, 0.6)));			// Sunlight
 
 		// Create objects
 
 		objects.push_back(new Ellipsoid(vec3(0, 0, 0), vec3(2, 2, 1), vec3(1, -1.0, 0.95), ORANGE));				// Room
 		objects.push_back(new Hyperboloid(vec3(0, 0, 0.95), vec3(0.625, 0.625, 1), vec3(1, 0.95, 2.5), SILVER));	// Sun tunnel
-		objects.push_back(new Ellipsoid(vec3(0, 0.2, -0.65), vec3(0.15, 0.15, 0.3), vec3(0, 0, 0), PURPLE));
-		objects.push_back(new Ellipsoid(vec3(0.1, -0.3, -0.8), vec3(0.2, 0.3, 0.2), vec3(0, 0, 0), BLUE));
-		objects.push_back(new Paraboloid(vec3(0.8, -0.1, 0), vec3(0.5, 0.5, 0.4), vec3(1, -1.0, 1), GOLD));
-		objects.push_back(new Hyperboloid(vec3(0.2, 0.6, -0.45), vec3(0.1, 0.1, 0.3), vec3(1, -0.9, 0), SILVER));
-		objects.push_back(new Ellipsoid(vec3(0, 0.2, -0.25), vec3(0.1, 0.1, 0.1), vec3(0, 0, 0), 
-			new RoughMaterial(vec3(0.15, 0.3, 0.4), vec3(1.0, 1.0, 1.0), 50),
-			new RoughMaterial(vec3(0.4, 0.2, 0.15), vec3(1.0, 1.0, 1.0), 50)));
+
+		// Reflective objects
+		objects.push_back(new Paraboloid(vec3(0.9, -0.1, 0), vec3(0.5, 0.5, 0.4), vec3(1, -1.0, 1), GOLD));
+		objects.push_back(new Hyperboloid(vec3(0.2, 0.6, -0.5), vec3(0.1, 0.1, 0.3), vec3(1, -1, 0), SILVER));
+
+		// Rough objects
+		objects.push_back(new Ellipsoid(vec3(0, 0.2, -0.7), vec3(0.15, 0.15, 0.3), vec3(0, 0, 0), PURPLE));	
+		objects.push_back(new Ellipsoid(vec3(0.2, -0.25, -0.6), vec3(0.05, 0.075, 0.05), vec3(0, 0, 0), BLUE));
+		objects.push_back(new Ellipsoid(vec3(0.2, -0.25, -0.725), vec3(0.075, 0.15, 0.075), vec3(0, 0, 0), BLUE));
+		objects.push_back(new Ellipsoid(vec3(0.2, -0.25, -0.9), vec3(0.1, 0.2, 0.1), vec3(0, 0, 0), BLUE));
+		objects.push_back(new Ellipsoid(vec3(0, 0.2, -0.3), vec3(0.1, 0.1, 0.1), vec3(0, 0, 0), PURPLE, BLUE));
 
 		// Generate sample points on hyperboloid surface
 		for (int i = 0; i < 10; i++) {

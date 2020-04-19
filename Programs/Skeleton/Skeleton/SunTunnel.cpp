@@ -165,6 +165,7 @@ protected:
 	vec3 cut;				// cut.x (0 or 1) - do we want to cut?, cut.y - from z, cut.z - to z
 	Material* material;		// Material of the quadric object
 	Material* texture;		// Optional texture of the quadric object
+	bool in = false;
 	
 	const mat4 translate(const mat4& m, const vec3& t) {
 		mat4 invTransM = InverseTranslateMatrix(t);
@@ -177,6 +178,7 @@ protected:
 	}
 
 public:
+	void setIn(const bool& _isIn) { in = _isIn; }
 	Hit intersect(const Ray& ray) {
 		Hit hit; // Ray parameter t = -1
 
@@ -210,8 +212,9 @@ public:
 		}
 
 		hit.normal = (gradf(vec4{ hit.position.x, hit.position.y, hit.position.z, 1 }));
-		if (dot(hit.normal, ray.dir) > 0) hit.normal = hit.normal * (-1); // flip the normal, we are inside the sphere
 		hit.material = material;
+
+		// If we want to texture the object with another material
 		if (texture) { // texturing
 			double u = acos(hit.normal.y) / M_PI;
 			double v = (atan2(hit.normal.z, hit.normal.x) / M_PI + 1) / 2;
@@ -331,11 +334,11 @@ float randomUniform(const float& from, const float& to) {
 
 class Scene {
 private:
-	std::vector<QuadricIntersectable*> objects;	// Objects in the virtual world
-	std::vector<Light*> lights;					// Lights in the virtual world (sunlight)
-	Camera camera;								// Camera recording the virtual world
-	vec3 ambientLight;							// Skylight
-	std::vector<vec3> lightSourceSamples;		// Point samples on the sun tunnel, representing the light sources
+	std::vector<QuadricIntersectable*> objects;		// Objects in the virtual world
+	std::vector<Light*> lights;						// Lights in the virtual world (sunlight)
+	Camera camera;									// Camera recording the virtual world
+	vec3 ambientLight;								// Skylight
+	std::vector<vec3> lightSourceSamples;			// Point samples on the sun tunnel, representing the light sources
 
 	Hit firstIntersect(const Ray& ray) {
 		Hit bestHit;
@@ -354,8 +357,8 @@ private:
 
 	vec3 trace(const Ray& ray, int depth = 0) {
 		Hit hit = firstIntersect(ray);
-		if (hit.t < 0 || depth > MAX_DEPTH) return ambientLight + lights[0]->Le *powf(dot(ray.dir, lights[0]->direction), 10);
-		if (depth > MAX_DEPTH) return { 0, 0, 0 };
+
+		if (hit.t < 0 || depth > MAX_DEPTH) return ambientLight + lights[0]->Le *powf(dot(ray.dir, lights[0]->direction), 5);
 		vec3 outRadiance = { 0, 0, 0 };
 
 		if (hit.material->type == ROUGH) {
@@ -399,8 +402,8 @@ public:
 
 		// Create lights
 
-		ambientLight = vec3{ 0.8, 0.85, 0.85 };										// Ambient skylight
-		lights.push_back(new Light(vec3(-20, 0, 3), vec3(0.7, 0.7, 0.7)));			// Sunlight
+		ambientLight = vec3{ 0.8, 1, 1 };											// Ambient skylight
+		lights.push_back(new Light(vec3(-50, 0, 2), vec3(0.5, 0.5, 0.5)));			// Sunlight
 
 		// Create materials
 
@@ -408,7 +411,7 @@ public:
 		ReflectiveMaterial* SILVER = new ReflectiveMaterial(vec3{ 0.14f, 0.16f, 0.13f }, vec3{ 4.1f, 2.3f, 3.1f });
 		RoughMaterial* BROWN = new RoughMaterial(vec3{ 0.3f, 0.2f, 0.1f }, vec3{ 1, 1, 1 }, 50);
 		RoughMaterial* PURPLE = new RoughMaterial(vec3(0.4, 0.2, 0.4), vec3(1, 1, 1), 50);
-		RoughMaterial* BLUE = new RoughMaterial(vec3{ 0.2f, 0.2f, 0.6f }, vec3{ 1, 1, 1 }, 50);
+		RoughMaterial* BLUE = new RoughMaterial(vec3{ 0.2f, 0.2f, 0.6f }, vec3{ 1, 1, 1 }, 100);
 		RoughMaterial* GREEN = new RoughMaterial(vec3{ 0.2f, 0.3f, 0.1f }, vec3{ 1, 1, 1 }, 50);
 		RoughMaterial* ORANGE = new RoughMaterial(vec3{ 0.4f, 0.2f, 0.0f}, vec3{ 1, 1, 1 }, 50);
 
@@ -416,12 +419,11 @@ public:
 
 		objects.push_back(new Ellipsoid(vec3(0, 0, 0), vec3(2, 2, 1), vec3(1, -1.0, 0.95), ORANGE));				// Room
 		objects.push_back(new Hyperboloid(vec3(0, 0, 0.95), vec3(0.625, 0.625, 1), vec3(1, 0.95, 2.5), SILVER));	// Sun tunnel
-
-		objects.push_back(new Ellipsoid(vec3(0.1, 0.3, -0.65), vec3(0.15, 0.15, 0.3), vec3(0, 0, 0), PURPLE));
-		objects.push_back(new Ellipsoid(vec3(0.15, -0.7, -0.5), vec3(0.2, 0.2, 0.4), vec3(0, 0, 0), BLUE));
+		objects.push_back(new Ellipsoid(vec3(0, 0.2, -0.65), vec3(0.15, 0.15, 0.3), vec3(0, 0, 0), PURPLE));
+		objects.push_back(new Ellipsoid(vec3(0.1, -0.3, -0.8), vec3(0.2, 0.3, 0.2), vec3(0, 0, 0), BLUE));
 		objects.push_back(new Paraboloid(vec3(0.8, -0.1, 0), vec3(0.5, 0.5, 0.4), vec3(1, -1.0, 1), GOLD));
-		objects.push_back(new Hyperboloid(vec3(1.2, 0.7, -0.45), vec3(0.1, 0.1, 0.3), vec3(1, -0.9, 0), GREEN));
-		objects.push_back(new Ellipsoid(vec3(0.1, 0.3, -0.25), vec3(0.1, 0.1, 0.1), vec3(0, 0, 0), 
+		objects.push_back(new Hyperboloid(vec3(0.2, 0.6, -0.45), vec3(0.1, 0.1, 0.3), vec3(1, -0.9, 0), SILVER));
+		objects.push_back(new Ellipsoid(vec3(0, 0.2, -0.25), vec3(0.1, 0.1, 0.1), vec3(0, 0, 0), 
 			new RoughMaterial(vec3(0.15, 0.3, 0.4), vec3(1.0, 1.0, 1.0), 50),
 			new RoughMaterial(vec3(0.4, 0.2, 0.15), vec3(1.0, 1.0, 1.0), 50)));
 
@@ -433,6 +435,7 @@ public:
 				if (xCoord * xCoord + yCoord * yCoord < 0.625 * 0.625) lightSourceSamples.push_back(vec3{ xCoord, yCoord, 0.95 });
 			}
 		}
+
 	}
 
 	void render(std::vector<vec4>& image) {

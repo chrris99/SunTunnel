@@ -349,7 +349,7 @@ private:
 	vec3 trace(const Ray& ray, int depth = 0) {
 		Hit hit = firstIntersect(ray);
 		if (hit.t < 0 || depth > MAX_DEPTH) return ambientLight + lights[0]->Le *powf(dot(ray.dir, lights[0]->direction), 10);
-
+		if (depth > MAX_DEPTH) return { 0, 0, 0 };
 		vec3 outRadiance = { 0, 0, 0 };
 
 		if (hit.material->type == ROUGH) {
@@ -393,8 +393,8 @@ public:
 
 		// Create lights
 
-		ambientLight = vec3{ 0.8, 1, 1 }; // SKY
-		lights.push_back(new Light(vec3(10, 0, 10), vec3(0.8, 0.8, 0.8)));
+		ambientLight = vec3{ 0.7, 0.9, 0.9 };									// Ambient skylight
+		lights.push_back(new Light(vec3(-20, 0, 2), vec3(1, 1, 1)));			// Sunlight
 
 		// Create materials
 
@@ -404,19 +404,20 @@ public:
 		RoughMaterial* PURPLE = new RoughMaterial(vec3(0.4, 0.2, 0.4), vec3(1, 1, 1), 50);
 		RoughMaterial* BLUE = new RoughMaterial(vec3{ 0.2f, 0.2f, 0.6f }, vec3{ 1, 1, 1 }, 50);
 		RoughMaterial* GREEN = new RoughMaterial(vec3{ 0.4f, 0.6f, 0.1f }, vec3{ 1, 1, 1 }, 50);
+		RoughMaterial* ORANGE = new RoughMaterial(vec3{ 0.4f, 0.2f, 0.0f}, vec3{ 1, 1, 1 }, 50);
 
 		// Create objects
 
-		objects.push_back(new Ellipsoid(vec3(0, 0, 0), vec3(2, 2, 1), vec3(1, -1.0, 0.95), BROWN));					// Room
+		objects.push_back(new Ellipsoid(vec3(0, 0, 0), vec3(2, 2, 1), vec3(1, -1.0, 0.95), ORANGE));				// Room
 		objects.push_back(new Hyperboloid(vec3(0, 0, 0.95), vec3(0.625, 0.625, 1), vec3(1, 0.95, 2.5), SILVER));	// Sun tunnel
 
-		objects.push_back(new Ellipsoid(vec3(0.3, 0.1, -0.6), vec3(0.15, 0.15, 0.3), vec3(0, 0, 0), PURPLE));
+		objects.push_back(new Ellipsoid(vec3(0.3, 0.2, -0.65), vec3(0.15, 0.15, 0.3), vec3(0, 0, 0), PURPLE));
 		objects.push_back(new Ellipsoid(vec3(0.35, -0.8, -0.5), vec3(0.2, 0.2, 0.4), vec3(0, 0, 0), BLUE));
 		objects.push_back(new Paraboloid(vec3(1.0, -0.2, 0), vec3(0.5, 0.5, 0.4), vec3(1, -1.0, 1), GOLD));
 		//objects.push_back(new Hyperboloid(vec3(0.4, 0.9, -0.4), vec3(0.6, 0.4, 0.6), vec3(1, -1.0, 0.2), BLUE));
-		//objects.push_back(new Ellipsoid(vec3(0.2, 0.7, -0.8), vec3(0.1, 0.1, 0.1), vec3(0, 0, 0), 
-		//	new RoughMaterial(vec3(0.3, 0.4, 0.8), vec3(1.0, 1.0, 1.0), 200),
-		//	new RoughMaterial(vec3(0.8, 0.4, 0.3), vec3(1.0, 1.0, 1.0), 200)));
+		objects.push_back(new Ellipsoid(vec3(0.3, 0.2, -0.25), vec3(0.1, 0.1, 0.1), vec3(0, 0, 0), 
+			new RoughMaterial(vec3(0.15, 0.3, 0.4), vec3(1.0, 1.0, 1.0), 50),
+			new RoughMaterial(vec3(0.4, 0.2, 0.15), vec3(1.0, 1.0, 1.0), 50)));
 
 		// Generate sample points on hyperboloid surface
 		for (int i = 0; i < 10; i++) {
@@ -430,7 +431,6 @@ public:
 
 	void render(std::vector<vec4>& image) {
 		for (int Y = 0; Y < windowHeight; Y++) {
-#pragma omp parallel for
 			for (int X = 0; X < windowWidth; X++) {
 				vec3 color = trace(camera.getRay(X, Y));
 				image[Y * windowWidth + X] = vec4(color.x, color.y, color.z, 1);

@@ -216,14 +216,14 @@ public:
 
 		hit.normal = (gradf(vec4{ hit.position.x, hit.position.y, hit.position.z, 1 }));
 		hit.material = material;
-
+		/*
 		// If we want to texture the object with another material
 		if (texture) { // texturing
 			double u = acos(hit.normal.y) / M_PI;
 			double v = (atan2(hit.normal.z, hit.normal.x) / M_PI + 1) / 2;
 			int U = (int)(u * 10), V = (int)(v * 14);
 			if (U % 2 ^ V % 2) hit.material = texture;
-		}
+		}*/
 
 		return hit;
 	}
@@ -324,7 +324,7 @@ private:
 
 	Hit firstIntersect(const Ray& ray) {
 		Hit bestHit;
-		for (auto object : objects) {
+		for (Intersectable* object : objects) {
 			Hit hit = object->intersect(ray); //  hit.t < 0 if no intersection
 			if (hit.t > 0 && (bestHit.t < 0 || hit.t < bestHit.t))  bestHit = hit;
 		}
@@ -333,7 +333,7 @@ private:
 	}
 
 	bool shadowIntersect(const Ray& ray) {	// for directional lights
-		for (auto object : objects) {
+		for (Intersectable* object : objects) {
 			Hit hit = object->intersect(ray);
 			if (hit.t > 0 && hit.position.z < 0.95) return true;
 		}
@@ -388,7 +388,8 @@ public:
 
 		// Create lights
 
-		ambientLight = vec3{ 0.6, 0.75, 0.75 };											// Ambient skylight
+		//ambientLight = vec3{ 0.6, 0.75, 0.75 };											// Ambient skylight
+		ambientLight = vec3{ 1, 1, 1 };
 		lights.push_back(new Light(vec3(10, 0, 3), vec3(0.6, 0.6, 0.6)));			// Sunlight
 
 		// Create materials
@@ -413,7 +414,7 @@ public:
 		objects.push_back(new Ellipsoid(vec3(0.2, -0.25, -0.6), vec3(0.05, 0.075, 0.05), vec3(0, 0, 0), BLUE));		// Blue (rough) ellipsoid
 		objects.push_back(new Ellipsoid(vec3(0.2, -0.25, -0.725), vec3(0.075, 0.15, 0.075), vec3(0, 0, 0), BLUE));	// Blue (rough) ellipsoid
 		objects.push_back(new Ellipsoid(vec3(0.2, -0.25, -0.9), vec3(0.1, 0.2, 0.1), vec3(0, 0, 0), BLUE));			// Blue (rough) ellipsoid
-		objects.push_back(new Ellipsoid(vec3(0, 0.2, -0.3), vec3(0.1, 0.1, 0.1), vec3(0, 0, 0), PURPLE, BLUE));		// Blue-purple chequered (rough) ellipsoid
+		objects.push_back(new Ellipsoid(vec3(0, 0.2, -0.3), vec3(0.1, 0.1, 0.1), vec3(0, 0, 0), PURPLE));			// Purple (rough) sphere
 
 		// Generate sample points on hyperboloid surface
 		for (int i = 0; i < 10; i++) {
@@ -427,6 +428,7 @@ public:
 
 	void render(std::vector<vec4>& image) {
 		for (int Y = 0; Y < windowHeight; Y++) {
+#pragma omp parallel for
 			for (int X = 0; X < windowWidth; X++) {
 				vec3 color = trace(camera.getRay(X, Y));
 				image[Y * windowWidth + X] = vec4(color.x, color.y, color.z, 1);

@@ -120,15 +120,7 @@ struct ReflectiveMaterial : Material {
 	}
 };
 
-// Create materials
 
-Material* GOLD		=	new ReflectiveMaterial(vec3{ 0.17f, 0.35f, 1.5f }, vec3{ 3.1f, 2.7f, 1.9f });
-Material* SILVER	=	new ReflectiveMaterial(vec3{ 0.14f, 0.16f, 0.13f }, vec3{ 4.1f, 2.3f, 3.1f });
-Material* BROWN		=	new RoughMaterial(vec3{ 0.3f, 0.2f, 0.1f }, vec3{ 1, 1, 1 }, 50);
-Material* PURPLE	=	new RoughMaterial(vec3(0.4, 0.2, 0.4), vec3(1, 1, 1), 50);
-Material* BLUE		=	new RoughMaterial(vec3{ 0.2f, 0.2f, 0.6f }, vec3{ 1, 1, 1 }, 50);
-Material* GREEN		=	new RoughMaterial(vec3{ 0.1f, 0.2f, 0.05f }, vec3{ 1, 1, 1 }, 50);
-Material* ORANGE	=	new RoughMaterial(vec3{ 0.4f, 0.2f, 0.0f }, vec3{ 1, 1, 1 }, 50);
 
 #pragma endregion
 
@@ -174,12 +166,19 @@ struct Light {
 
 #pragma region Objects
 
-class QuadricIntersectable {
+class Intersectable {
+protected:
+	Material* material;
+	Material* texture;
+public:
+	virtual Hit intersect(const Ray& ray) = 0;
+};
+
+class QuadricIntersectable : public Intersectable {
 protected:
 	mat4 Q;					// Symmetric matrix, representing a quadric object (transformed)
 	vec3 cut;				// cut.x (0 or 1) - do we want to cut?, cut.y - from z, cut.z - to z
-	Material* material;		// Material of the quadric object
-	Material* texture;		// Optional texture of the quadric object
+
 	bool in = false;
 	
 	const mat4 translate(const mat4& m, const vec3& t) {
@@ -194,7 +193,7 @@ protected:
 
 public:
 	void setIn(const bool& _isIn) { in = _isIn; }
-	Hit intersect(const Ray& ray) {
+	Hit intersect(const Ray& ray) override final {
 		Hit hit; // Ray parameter t = -1
 
 		vec4 S = { ray.start.x, ray.start.y, ray.start.z, 1 };
@@ -344,7 +343,7 @@ public:
 
 class Scene {
 private:
-	std::vector<QuadricIntersectable*> objects;		// Objects in the virtual world
+	std::vector<Intersectable*> objects;			// Objects in the virtual world
 	std::vector<Light*> lights;						// Lights in the virtual world (sunlight)
 	Camera camera;									// Camera recording the virtual world
 	vec3 ambientLight;								// Skylight
@@ -414,7 +413,17 @@ public:
 
 		ambientLight = vec3{ 0.8, 1, 1 };											// Ambient skylight
 		lights.push_back(new Light(vec3(10, 0, 3), vec3(0.6, 0.6, 0.6)));			// Sunlight
+		
+																					// Create materials
 
+		Material* GOLD = new ReflectiveMaterial(vec3{ 0.17f, 0.35f, 1.5f }, vec3{ 3.1f, 2.7f, 1.9f });
+		Material* SILVER = new ReflectiveMaterial(vec3{ 0.14f, 0.16f, 0.13f }, vec3{ 4.1f, 2.3f, 3.1f });
+		Material* BROWN = new RoughMaterial(vec3{ 0.3f, 0.2f, 0.1f }, vec3{ 1, 1, 1 }, 50);
+		Material* PURPLE = new RoughMaterial(vec3(0.4, 0.2, 0.4), vec3(1, 1, 1), 50);
+		Material* BLUE = new RoughMaterial(vec3{ 0.2f, 0.2f, 0.6f }, vec3{ 1, 1, 1 }, 50);
+		Material* GREEN = new RoughMaterial(vec3{ 0.1f, 0.2f, 0.05f }, vec3{ 1, 1, 1 }, 50);
+		Material* ORANGE = new RoughMaterial(vec3{ 0.4f, 0.2f, 0.0f }, vec3{ 1, 1, 1 }, 50);
+		
 		// Create objects
 
 		objects.push_back(new Ellipsoid(vec3(0, 0, 0), vec3(2, 2, 1), vec3(1, -1.0, 0.95), ORANGE));				// Room

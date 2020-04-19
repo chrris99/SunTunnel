@@ -335,7 +335,7 @@ private:
 		if (depth > MAX_DEPTH) return ambientLight;
 
 		Hit hit = firstIntersect(ray);
-		if (hit.t < 0) return 2 * ambientLight + lights[0]->Le *powf(dot(ray.dir, lights[0]->direction), 10);
+		if (hit.t < 0) return ambientLight + lights[0]->Le *powf(dot(ray.dir, lights[0]->direction), 10);
 		vec3 outRadiance = { 0, 0, 0 };
 
 		if (hit.material->type == ROUGH) {
@@ -379,8 +379,7 @@ public:
 
 		// Create lights
 
-		ambientLight = vec3{ 0.6, 0.75, 0.75 };										// Ambient skylight
-		//ambientLight = vec3{ 1, 1, 1 };
+		ambientLight = vec3{ 0.7, 0.9, 0.9 };										// Ambient skylight
 		lights.push_back(new Light(vec3(10, 0, 3), vec3(0.6, 0.6, 0.6)));			// Sunlight
 
 		// Create materials
@@ -388,8 +387,9 @@ public:
 		Material* GOLD = new ReflectiveMaterial(vec3(0.17, 0.35, 1.5), vec3(3.1, 2.7, 1.9));
 		Material* SILVER = new ReflectiveMaterial(vec3(0.14, 0.16, 0.13), vec3(4.1, 2.3, 3.1));
 		Material* PURPLE = new RoughMaterial(vec3(0.4, 0.2, 0.4), vec3(1, 1, 1), 50);
-		Material* BLUE = new RoughMaterial(vec3(0.2, 0.2, 0.6), vec3(1, 1, 1), 50);
+		Material* BLUE = new RoughMaterial(vec3(0.2, 0.2, 0.6), vec3(2, 2, 2), 50);
 		Material* ORANGE = new RoughMaterial(vec3(0.3, 0.15, 0), vec3(1, 1, 1), 50);
+		Material* RED = new RoughMaterial(vec3(0.3, 0, 0), vec3(2, 2, 2), 50);
 
 		// Create objects
 
@@ -401,11 +401,11 @@ public:
 		objects.push_back(new Hyperboloid(vec3(0.2, 0.6, -0.5), vec3(0.1, 0.1, 0.3), vec3(1, -1, 0), SILVER));		// Silver hyperboloid
 
 		// Rough objects
-		objects.push_back(new Ellipsoid(vec3(0, 0.2, -0.7), vec3(0.15, 0.15, 0.3), vec3(0, 0, 0), PURPLE));			// Purple (rough) ellipsoid
-		objects.push_back(new Ellipsoid(vec3(0.2, -0.25, -0.6), vec3(0.05, 0.075, 0.05), vec3(0, 0, 0), BLUE));		// Blue (rough) ellipsoid
-		objects.push_back(new Ellipsoid(vec3(0.2, -0.25, -0.725), vec3(0.075, 0.15, 0.075), vec3(0, 0, 0), BLUE));	// Blue (rough) ellipsoid
-		objects.push_back(new Ellipsoid(vec3(0.2, -0.25, -0.9), vec3(0.1, 0.2, 0.1), vec3(0, 0, 0), BLUE));			// Blue (rough) ellipsoid
-		objects.push_back(new Ellipsoid(vec3(0, 0.2, -0.3), vec3(0.1, 0.1, 0.1), vec3(0, 0, 0), PURPLE));			// Purple (rough) sphere
+		objects.push_back(new Ellipsoid(vec3(0, 0.2, -0.7), vec3(0.15, 0.15, 0.3), vec3(0, 0, 0), BLUE));			// Purple (rough) ellipsoid
+		objects.push_back(new Ellipsoid(vec3(0.2, -0.25, -0.6), vec3(0.05, 0.075, 0.05), vec3(0, 0, 0), RED));		// Blue (rough) ellipsoid
+		objects.push_back(new Ellipsoid(vec3(0.2, -0.25, -0.725), vec3(0.075, 0.15, 0.075), vec3(0, 0, 0), RED));	// Blue (rough) ellipsoid
+		objects.push_back(new Ellipsoid(vec3(0.2, -0.25, -0.9), vec3(0.1, 0.2, 0.1), vec3(0, 0, 0), RED));			// Blue (rough) ellipsoid
+		objects.push_back(new Ellipsoid(vec3(0, 0.2, -0.3), vec3(0.1, 0.1, 0.1), vec3(0, 0, 0), BLUE));			// Purple (rough) sphere
 
 		// Generate sample points on hyperboloid surface
 		for (int i = 0; i < 10; i++) {

@@ -388,7 +388,7 @@ public:
 
 		// Create lights
 
-		ambientLight = vec3{ 0.8, 1, 1 };											// Ambient skylight
+		ambientLight = vec3{ 0.6, 0.75, 0.75 };											// Ambient skylight
 		lights.push_back(new Light(vec3(10, 0, 3), vec3(0.6, 0.6, 0.6)));			// Sunlight
 
 		// Create materials

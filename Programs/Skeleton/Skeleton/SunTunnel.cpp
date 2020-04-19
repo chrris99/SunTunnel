@@ -216,14 +216,6 @@ public:
 
 		hit.normal = (gradf(vec4{ hit.position.x, hit.position.y, hit.position.z, 1 }));
 		hit.material = material;
-		/*
-		// If we want to texture the object with another material
-		if (texture) { // texturing
-			double u = acos(hit.normal.y) / M_PI;
-			double v = (atan2(hit.normal.z, hit.normal.x) / M_PI + 1) / 2;
-			int U = (int)(u * 10), V = (int)(v * 14);
-			if (U % 2 ^ V % 2) hit.material = texture;
-		}*/
 
 		return hit;
 	}
@@ -231,10 +223,9 @@ public:
 
 class Ellipsoid final : public QuadricIntersectable {
 public:
-	Ellipsoid(const vec3& center, const vec3& params, const vec3& _cut, Material* _material, Material* _texture = nullptr) {
+	Ellipsoid(const vec3& center, const vec3& params, const vec3& _cut, Material* _material) {
 
 		material = _material;
-		texture = _texture;
 		cut = _cut;
 
 		mat4 untransformedQ = { 
@@ -344,7 +335,7 @@ private:
 		if (depth > MAX_DEPTH) return ambientLight;
 
 		Hit hit = firstIntersect(ray);
-		if (hit.t < 0) return ambientLight + lights[0]->Le *powf(dot(ray.dir, lights[0]->direction), 10);
+		if (hit.t < 0) return 2 * ambientLight + lights[0]->Le *powf(dot(ray.dir, lights[0]->direction), 10);
 		vec3 outRadiance = { 0, 0, 0 };
 
 		if (hit.material->type == ROUGH) {
@@ -388,8 +379,8 @@ public:
 
 		// Create lights
 
-		//ambientLight = vec3{ 0.6, 0.75, 0.75 };											// Ambient skylight
-		ambientLight = vec3{ 1, 1, 1 };
+		ambientLight = vec3{ 0.6, 0.75, 0.75 };										// Ambient skylight
+		//ambientLight = vec3{ 1, 1, 1 };
 		lights.push_back(new Light(vec3(10, 0, 3), vec3(0.6, 0.6, 0.6)));			// Sunlight
 
 		// Create materials
@@ -398,7 +389,7 @@ public:
 		Material* SILVER = new ReflectiveMaterial(vec3(0.14, 0.16, 0.13), vec3(4.1, 2.3, 3.1));
 		Material* PURPLE = new RoughMaterial(vec3(0.4, 0.2, 0.4), vec3(1, 1, 1), 50);
 		Material* BLUE = new RoughMaterial(vec3(0.2, 0.2, 0.6), vec3(1, 1, 1), 50);
-		Material* ORANGE = new RoughMaterial(vec3(0.4f, 0.2, 0), vec3(1, 1, 1), 50);
+		Material* ORANGE = new RoughMaterial(vec3(0.3, 0.15, 0), vec3(1, 1, 1), 50);
 
 		// Create objects
 

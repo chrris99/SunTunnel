@@ -85,8 +85,6 @@ mat4 InverseTranslateMatrix(const vec3& t) {
 
 #pragma endregion
 
-
-
 #pragma region Materials
 
 enum class MaterialType { Rough, Reflective };
@@ -171,7 +169,6 @@ protected:
 	}
 
 public:
-
 	Hit intersect(const Ray& ray) {
 		Hit hit; // Ray parameter t = -1
 
@@ -296,9 +293,7 @@ public:
 class Scene {
 private:
 	Camera camera;									// Camera recording the virtual world
-
-	std::vector<QuadricIntersectable*> objects;			// Objects in the virtual world
-
+	std::vector<QuadricIntersectable*> objects;		// Objects in the virtual world
 	std::vector<Light*> lights;						// Lights in the virtual world (sunlight)
 	vec3 ambientLight;								// Skylight
 	std::vector<vec3> lightSourceSamples;			// Point samples on the sun tunnel, representing the light sources
@@ -491,3 +486,5 @@ void onIdle() {
 
 	glutPostRedisplay();
 }
+
+#pragma endregion

@@ -321,10 +321,10 @@ private:
 	}
 
 	vec3 trace(const Ray& ray, int depth = 0) {
-		if (depth > MAX_DEPTH) return ambientLight;
+		if (depth > MAX_DEPTH) return 1.5 * ambientLight;
 
 		Hit hit = firstIntersect(ray);
-		if (hit.t < 0) return ambientLight + lights[0]->Le * powf(dot(ray.dir, lights[0]->direction), 10);
+		if (hit.t < 0) return 1.5 * ambientLight + lights[0]->Le * powf(dot(ray.dir, lights[0]->direction), 10);
 		vec3 outRadiance = { 0.0f, 0.0f, 0.0f };
 
 		if (hit.material->type == MaterialType::Rough) {
@@ -335,7 +335,7 @@ private:
 				float cosTheta = dot(hit.normal, rayDir);
 				if (cosTheta > 0 && !shadowIntersect(shadowRay)) {
 					float cosa = dot(normalize(vec3{ 0.0f, 0.0f, 0.0f } - samplePoint), normalize(hit.position - samplePoint));
-					float omega = (0.625f * PI_F / lightSourceSamples.size()) * (cosa / powf(distance(hit.position, samplePoint), 2));
+					float omega = (1.5f * 0.398f * PI_F / lightSourceSamples.size()) * (cosa / powf(distance(hit.position, samplePoint), 2));
 					vec3 Le = trace(Ray(hit.position + hit.normal * EPSILON, rayDir), depth + 1);
 					outRadiance = outRadiance + Le * hit.material->kd * cosTheta * omega;
 					vec3 halfway = normalize(-ray.dir + rayDir);
@@ -360,45 +360,42 @@ public:
 	void build() {
 
 		// Create camera
-		vec3 eye = vec3{ -1.8f, 0.0f, 0.0f };
+		vec3 eye = vec3{ -1.7f, 0.0f, -0.2f };
 		vec3 vup = vec3{ 0.0f, 0.0f, 1.0f };
 		vec3 lookat = vec3{ 0.0f, 0.0f, 0.0f };
-		float fov = 70.0f * PI_F / 180.0f;
+		float fov = 75.0f * PI_F / 180.0f;
 		camera.set(eye, lookat, vup, fov);
 
 		// Create lights
-		ambientLight = vec3{ 0.8f, 1.0f, 1.0f };												// Skylight
-		lights.push_back(new Light(vec3{ 10.0f, 0.0f, 3.0f }, vec3{ 0.6f, 0.6f, 0.6f }));		// Sunlight
+		ambientLight = vec3{ 1.0f, 1.0f, 1.0f };												// Skylight
+		lights.push_back(new Light(vec3{ 10.0f, 0.0f, 3.0f }, vec3{ 1.0f, 1.0f, 1.0f }));		// Sunlight
 
 		// Create materials
 		Material* GOLD = new ReflectiveMaterial(vec3{ 0.17f, 0.35f, 1.5f }, vec3{ 3.1f, 2.7f, 1.9f });
 		Material* SILVER = new ReflectiveMaterial(vec3{ 0.14f, 0.16f, 0.13f }, vec3{ 4.1f, 2.3f, 3.1f });
-		Material* PURPLE = new RoughMaterial(vec3{ 0.4f, 0.2f, 0.4f });
-		Material* BLUE = new RoughMaterial(vec3{ 0.2f, 0.2f, 0.6f });
-		Material* ORANGE = new RoughMaterial(vec3{ 0.35f, 0.175f, 0.0f });
+		Material* PURPLE = new RoughMaterial(vec3{ 0.3f, 0.15f, 0.3f });
+		Material* BLUE = new RoughMaterial(vec3{ 0.15f, 0.15f, 0.45f });
+		Material* ORANGE = new RoughMaterial(vec3{ 0.4f, 0.2f, 0.0f });
 
 		// Create objects
-		objects.push_back(new Hyperboloid(vec3{ 0.0f, 0.0f, 0.95f }, vec3{ 0.625f, 0.625f, 1.0f }, SILVER, vec3{ 1.0f, 0.95f, 2.5f }));			// Sun tunnel (objects[0])
-		objects.push_back(new Ellipsoid(vec3{ 0.0f, 0.0f, 0.0f }, vec3{ 2.0f, 2.0f, 1.0f }, ORANGE, vec3{ 1.0f, -1.0f, 0.95f }));				// Room
+		objects.push_back(new Hyperboloid(vec3{ 0.0f, 0.0f, 0.98f }, vec3{ 0.398f, 0.398f, 1.0f }, SILVER, vec3{ 1.0f, 0.98f, 2.5f }));		// Hyperboloid suntunnel (objects[0])
+		objects.push_back(new Ellipsoid(vec3{ 0.0f, 0.0f, 0.0f }, vec3{ 2.0f, 2.0f, 1.0f }, ORANGE, vec3{ 1.0f, -1.0f, 0.98f }));			// Ellipsoid room
 
+		objects.push_back(new Paraboloid(vec3{ 0.9f, -0.1f, 0.0f }, vec3{ 0.5f, 0.5f, 0.4f }, GOLD, vec3{ 1.0f, -1.0f, 1.0f }));
+		objects.push_back(new Hyperboloid(vec3{ 0.2f, 0.6f, -0.5f }, vec3{ 0.1f, 0.1f, 0.3f }, SILVER, vec3{ 1.0f, -1.0f, 0.0f }));
 
-		// Reflective objects
-		objects.push_back(new Paraboloid(vec3{ 0.9f, -0.1f, 0.0f }, vec3{ 0.5f, 0.5f, 0.4f }, GOLD, vec3{ 1.0f, -1.0f, 1.0f }));				// Gold paraboloid
-		objects.push_back(new Hyperboloid(vec3{ 0.2f, 0.6f, -0.5f }, vec3{ 0.1f, 0.1f, 0.3f }, SILVER, vec3{ 1.0f, -1.0f, 0.0f }));									// Silver hyperboloid
-
-		// Rough objects
-		objects.push_back(new Ellipsoid(vec3{ 0.0f, 0.2f, -0.7f }, vec3{ 0.15f, 0.15f, 0.3f }, PURPLE));													// Purple (rough) ellipsoid
-		objects.push_back(new Ellipsoid(vec3{ 0.2f, -0.25f, -0.6f }, vec3{ 0.05f, 0.075f, 0.05f }, BLUE));												// Blue (rough) ellipsoid
-		objects.push_back(new Ellipsoid(vec3{ 0.2f, -0.25f, -0.725f }, vec3{ 0.075f, 0.15f, 0.075f }, BLUE));												// Blue (rough) ellipsoid
-		objects.push_back(new Ellipsoid(vec3{ 0.2f, -0.25f, -0.9f }, vec3{ 0.1f, 0.2f, 0.1f }, BLUE));											// Blue (rough) ellipsoid
-		objects.push_back(new Ellipsoid(vec3{ 0.0f, 0.2f, -0.3f }, vec3{ 0.1f, 0.1f, 0.1f }, PURPLE));														// Purple (rough) sphere
+		objects.push_back(new Ellipsoid(vec3{ 0.0f, 0.2f, -0.7f }, vec3{ 0.15f, 0.15f, 0.3f }, PURPLE));													
+		objects.push_back(new Ellipsoid(vec3{ 0.2f, -0.25f, -0.6f }, vec3{ 0.05f, 0.075f, 0.05f }, BLUE));											
+		objects.push_back(new Ellipsoid(vec3{ 0.2f, -0.25f, -0.725f }, vec3{ 0.075f, 0.15f, 0.075f }, BLUE));												
+		objects.push_back(new Ellipsoid(vec3{ 0.2f, -0.25f, -0.9f }, vec3{ 0.1f, 0.2f, 0.1f }, BLUE));											
+		objects.push_back(new Ellipsoid(vec3{ 0.0f, 0.2f, -0.3f }, vec3{ 0.1f, 0.1f, 0.1f }, PURPLE));														
 
 		// Generate sample points on hyperboloid surface
 		for (int i = 0; i < 10; i++) {
 			for (int j = 0; j < 10; j++) {
-				float xCoord = -0.625f + i * 0.125f;
-				float yCoord = -0.625f + j * 0.125f;
-				if (xCoord * xCoord + yCoord * yCoord < 0.625f * 0.625f) lightSourceSamples.push_back(vec3{ xCoord, yCoord, 0.95f });
+				float xCoord = -0.398f + i * 0.0884f;
+				float yCoord = -0.398f + j * 0.0884f;
+				if (xCoord * xCoord + yCoord * yCoord < 0.398f * 0.398f) lightSourceSamples.push_back(vec3{ xCoord, yCoord, 0.98f });
 			}
 		}
 	}

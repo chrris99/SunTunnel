@@ -19,45 +19,9 @@
 
 #pragma region Constants
 
+const float  PI_F = 3.14159265358979f;
 const float EPSILON = 0.0001f;
 const int MAX_DEPTH = 5;
-
-#pragma endregion
-
-#pragma region Operators
-
-vec3 operator/(const vec3& num, const vec3& denom) {
-	return vec3{ num.x / denom.x, num.y / denom.y, num.z / denom.z };
-}
-
-float distance(const vec3& p1, const vec3& p2) {
-	return sqrtf((p1.x - p2.x) * (p1.x - p2.x) + (p1.y - p2.y) * (p1.y - p2.y) + (p1.z - p2.z) * (p1.z - p2.z));
-}
-
-mat4 transpose(const mat4& m) {
-	mat4 mTranspose;
-	for (int i = 0; i < 4; i++) {
-		for (int j = 0; j < 4; j++) {
-			mTranspose[i][j] = m[j][i];
-		}
-	}
-
-	return mTranspose;
-}
-
-mat4 InverseTranslateMatrix(const vec3& t) {
-	return mat4{ 
-		vec4{ 1, 0, 0, 0 },
-		vec4{ 0, 1, 0, 0 },
-		vec4{ 0, 0, 1, 0 },
-		vec4{ -t.x, -t.y, -t.z, 1 } 
-	};
-}
-
-
-float randomUniform(const float& from, const float& to) {
-	return (float)rand() / (RAND_MAX + 1.0) * (to - from) + from;
-}
 
 #pragma endregion
 
@@ -89,9 +53,43 @@ const char* fragmentSource = R"(
 
 #pragma endregion
 
+#pragma region Operators
+
+vec3 operator/(const vec3& num, const vec3& denom) {
+	return vec3{ num.x / denom.x, num.y / denom.y, num.z / denom.z };
+}
+
+float distance(const vec3& p1, const vec3& p2) {
+	return sqrtf((p1.x - p2.x) * (p1.x - p2.x) + (p1.y - p2.y) * (p1.y - p2.y) + (p1.z - p2.z) * (p1.z - p2.z));
+}
+
+mat4 transpose(const mat4& m) {
+	mat4 mTranspose;
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 4; j++) {
+			mTranspose[i][j] = m[j][i];
+		}
+	}
+
+	return mTranspose;
+}
+
+mat4 InverseTranslateMatrix(const vec3& t) {
+	return mat4{
+		vec4{ 1, 0, 0, 0 },
+		vec4{ 0, 1, 0, 0 },
+		vec4{ 0, 0, 1, 0 },
+		vec4{ -t.x, -t.y, -t.z, 1 }
+	};
+}
+
+#pragma endregion
+
+
+
 #pragma region Materials
 
-enum MaterialType { ROUGH, REFLECTIVE};
+enum class MaterialType { Rough, Reflective };
 
 struct Material {
 	MaterialType type;	// ROUGH or REFLECTIVE
@@ -99,12 +97,12 @@ struct Material {
 	vec3 F0;
 	float shine;
 
-	Material(MaterialType t) { type = t; }
+	Material(const MaterialType& t) { type = t; }
 };
 
 struct RoughMaterial : Material {
-	RoughMaterial(vec3 _kd, vec3 _ks, float _shine) : Material(ROUGH) {
-		ka = _kd * M_PI;
+	RoughMaterial(const vec3& _kd, const vec3& _ks = { 1.0f, 1.0f, 1.0f }, const float& _shine = 50.0f) : Material{ MaterialType::Rough } {
+		ka = _kd * PI_F;
 		kd = _kd;
 		ks = _ks;
 		shine = _shine;
@@ -112,8 +110,8 @@ struct RoughMaterial : Material {
 };
 
 struct ReflectiveMaterial : Material {
-	ReflectiveMaterial(vec3 n, vec3 kappa) : Material(REFLECTIVE) {
-		vec3 one = { 1, 1, 1 };
+	ReflectiveMaterial(const vec3& n, const vec3& kappa) : Material{ MaterialType::Reflective } {
+		vec3 one = { 1.0f, 1.0f, 1.0f };
 		F0 = ((n - one) * (n - one) + kappa * kappa) / ((n + one) * (n + one) + kappa * kappa);
 	}
 };
@@ -140,13 +138,13 @@ struct Hit {
 	* meaning that there was no (valuable) intersection
 	*/
 
-	Hit() : t(-1) { }
+	Hit() : t{ -1.0f } { }
 };
 
 struct Light {
 	vec3 direction, Le;
 
-	Light(vec3 _direction, vec3 _Le) {
+	Light(const vec3& _direction, const vec3& _Le) {
 		direction = normalize(_direction);
 		Le = _Le;
 	}
@@ -156,17 +154,9 @@ struct Light {
 
 #pragma region Objects
 
-class Intersectable {
+class QuadricIntersectable {
 protected:
 	Material* material;
-	Material* texture;
-
-public:
-	virtual Hit intersect(const Ray& ray) = 0;
-};
-
-class QuadricIntersectable : public Intersectable {
-protected:
 	mat4 Q;					// Symmetric matrix, representing a quadric object (transformed)
 	vec3 cut;				// cut.x (0 or 1) - do we want to cut?, cut.y - from z, cut.z - to z
 
@@ -175,14 +165,14 @@ protected:
 		return invTransM * m * transpose(invTransM);
 	}
 
-	vec3 gradf(vec4 r) {
+	vec3 gradf(const vec4& r) {
 		vec4 g = r * Q * 2.0f;
 		return normalize(vec3{ g.x, g.y, g.z });
 	}
 
 public:
 
-	Hit intersect(const Ray& ray) override final {
+	Hit intersect(const Ray& ray) {
 		Hit hit; // Ray parameter t = -1
 
 		vec4 S = { ray.start.x, ray.start.y, ray.start.z, 1 };
@@ -223,16 +213,16 @@ public:
 
 class Ellipsoid final : public QuadricIntersectable {
 public:
-	Ellipsoid(const vec3& center, const vec3& params, const vec3& _cut, Material* _material) {
+	Ellipsoid(const vec3& center, const vec3& params, Material* _material, const vec3& _cut = { 0.0f, 0.0f, 0.0f }) {
 
 		material = _material;
 		cut = _cut;
 
-		mat4 untransformedQ = { 
-			{1 / (params.x * params.x), 0, 0, 0},
-			{0, 1 / (params.y * params.y), 0, 0},
-			{0, 0, 1 / (params.z * params.z), 0},
-			{0, 0, 0, -1}
+		mat4 untransformedQ = {
+			{ 1 / (params.x * params.x), 0, 0, 0 },
+			{ 0, 1 / (params.y * params.y), 0, 0 },
+			{ 0, 0, 1 / (params.z * params.z), 0 },
+			{ 0, 0, 0, -1 }
 		};
 
 		this->Q = translate(untransformedQ, center);
@@ -241,16 +231,16 @@ public:
 
 class Hyperboloid final : public QuadricIntersectable {
 public:
-	Hyperboloid(const vec3& center, const vec3& params, const vec3& _cut, Material* _material) {
-		
+	Hyperboloid(const vec3& center, const vec3& params, Material* _material, const vec3& _cut = { 0.0f, 0.0f, 0.0f }) {
+
 		material = _material;
 		cut = _cut;
 
 		mat4 untransformedQ = {
-			{1 / (params.x * params.x), 0, 0, 0},
-			{0, 1 / (params.y * params.y), 0, 0},
-			{0, 0, -1 / (params.z * params.z), 0},
-			{0, 0, 0, -1}
+			{ 1 / (params.x * params.x), 0, 0, 0 },
+			{ 0, 1 / (params.y * params.y), 0, 0 },
+			{ 0, 0, -1 / (params.z * params.z), 0 },
+			{ 0, 0, 0, -1 }
 		};
 
 		this->Q = translate(untransformedQ, center);
@@ -259,11 +249,11 @@ public:
 
 class Paraboloid final : public QuadricIntersectable {
 public:
-	Paraboloid(const vec3& center, const vec3& params, const vec3& _cut, Material* _material) {
+	Paraboloid(const vec3& center, const vec3& params, Material* _material, const vec3& _cut = { 0.0f, 0.0f, 0.0f }) {
 
 		material = _material;
 		cut = _cut;
-		
+
 		mat4 untransformedQ = {
 			{ 1 / params.x, 0, 0, 0 },
 			{ 0, 1 / params.y, 0, 0 },
@@ -284,7 +274,7 @@ private:
 	vec3 eye, lookat, right, up;
 
 public:
-	void set(vec3 _eye, vec3 _lookat, vec3 vup, float fov) {
+	void set(const vec3& _eye, const vec3& _lookat, const vec3& vup, const float& fov) {
 		eye = _eye;
 		lookat = _lookat;
 
@@ -293,7 +283,7 @@ public:
 		up = normalize(cross(w, right)) * length(w) * tanf(fov / 2);
 	}
 
-	Ray getRay(int X, int Y) {
+	Ray getRay(const int& X, const int& Y) {
 		vec3 dir = lookat + right * (2.0f * (X + 0.5f) / windowWidth - 1) + up * (2.0f * (Y + 0.5f) / windowHeight - 1) - eye;
 		return Ray(eye, dir);
 	}
@@ -307,7 +297,7 @@ class Scene {
 private:
 	Camera camera;									// Camera recording the virtual world
 
-	std::vector<Intersectable*> objects;			// Objects in the virtual world
+	std::vector<QuadricIntersectable*> objects;			// Objects in the virtual world
 
 	std::vector<Light*> lights;						// Lights in the virtual world (sunlight)
 	vec3 ambientLight;								// Skylight
@@ -315,7 +305,7 @@ private:
 
 	Hit firstIntersect(const Ray& ray) {
 		Hit bestHit;
-		for (Intersectable* object : objects) {
+		for (QuadricIntersectable* object : objects) {
 			Hit hit = object->intersect(ray); //  hit.t < 0 if no intersection
 			if (hit.t > 0 && (bestHit.t < 0 || hit.t < bestHit.t))  bestHit = hit;
 		}
@@ -324,9 +314,8 @@ private:
 	}
 
 	bool shadowIntersect(const Ray& ray) {	// for directional lights
-		for (Intersectable* object : objects) {
-			Hit hit = object->intersect(ray);
-			if (hit.t > 0 && hit.position.z < 0.95) return true;
+		for (auto object = objects.begin() + 1; object != objects.end(); object++) {
+			if ((*object)->intersect(ray).t > 0) return true;
 		}
 		return false;
 	}
@@ -335,31 +324,32 @@ private:
 		if (depth > MAX_DEPTH) return ambientLight;
 
 		Hit hit = firstIntersect(ray);
-		if (hit.t < 0) return ambientLight + lights[0]->Le *powf(dot(ray.dir, lights[0]->direction), 10);
-		vec3 outRadiance = { 0, 0, 0 };
+		if (hit.t < 0) return ambientLight + lights[0]->Le * powf(dot(ray.dir, lights[0]->direction), 10);
+		vec3 outRadiance = { 0.0f, 0.0f, 0.0f };
 
-		if (hit.material->type == ROUGH) {
+		if (hit.material->type == MaterialType::Rough) {
 			outRadiance = hit.material->ka * ambientLight;
 			for (auto samplePoint : lightSourceSamples) {
 				vec3 rayDir = samplePoint - hit.position;
 				Ray shadowRay(hit.position + hit.normal * EPSILON, rayDir);
 				float cosTheta = dot(hit.normal, rayDir);
 				if (cosTheta > 0 && !shadowIntersect(shadowRay)) {
-					float cosa = dot(normalize(vec3{ 0, 0, 0 } -samplePoint), normalize(hit.position - samplePoint));
-					float omega = (2 * 0.625 * M_PI / lightSourceSamples.size()) * (cosa / powf(distance(hit.position, samplePoint), 2));
-					outRadiance = outRadiance + (trace(Ray(hit.position + hit.normal * EPSILON, rayDir), depth + 1) * hit.material->kd * cosTheta) * omega;
+					float cosa = dot(normalize(vec3{ 0.0f, 0.0f, 0.0f } - samplePoint), normalize(hit.position - samplePoint));
+					float omega = (0.625f * PI_F / lightSourceSamples.size()) * (cosa / powf(distance(hit.position, samplePoint), 2));
+					vec3 Le = trace(Ray(hit.position + hit.normal * EPSILON, rayDir), depth + 1);
+					outRadiance = outRadiance + Le * hit.material->kd * cosTheta * omega;
 					vec3 halfway = normalize(-ray.dir + rayDir);
 					float cosDelta = dot(hit.normal, halfway);
-					if (cosDelta > 0) outRadiance = outRadiance + trace(Ray(hit.position + hit.normal * EPSILON, rayDir), depth + 1) * hit.material->ks * powf(cosDelta, hit.material->shine) * omega;
+					if (cosDelta > 0) outRadiance = outRadiance + Le * hit.material->ks * powf(cosDelta, hit.material->shine) * omega;
 				}
 			}
 		}
 
-		if (hit.material->type == REFLECTIVE) {
+		if (hit.material->type == MaterialType::Reflective) {
 			vec3 reflectedDir = ray.dir - hit.normal * dot(hit.normal, ray.dir) * 2.0f;
 			float cosa = -dot(ray.dir, hit.normal);
-			vec3 one = { 1,1,1 };
-			vec3 Fresnel = hit.material->F0 + (one - hit.material->F0) * pow(1 - cosa, 5);
+			vec3 one = { 1.0f, 1.0f, 1.0f };
+			vec3 Fresnel = hit.material->F0 + (one - hit.material->F0) * powf(1.0f - cosa, 5);
 			outRadiance = outRadiance + trace(Ray(hit.position + hit.normal * EPSILON, reflectedDir), depth + 1) * Fresnel;
 		}
 
@@ -370,49 +360,45 @@ public:
 	void build() {
 
 		// Create camera
-
-		vec3 eye = vec3{ -1.8, 0, 0 };
-		vec3 vup = vec3{ 0, 0, 1 };
-		vec3 lookat = vec3{ 0, 0, 0 };
-		float fov = 70 * M_PI / 180;
+		vec3 eye = vec3{ -1.8f, 0.0f, 0.0f };
+		vec3 vup = vec3{ 0.0f, 0.0f, 1.0f };
+		vec3 lookat = vec3{ 0.0f, 0.0f, 0.0f };
+		float fov = 70.0f * PI_F / 180.0f;
 		camera.set(eye, lookat, vup, fov);
 
 		// Create lights
-
-		ambientLight = vec3{ 0.7, 0.9, 0.9 };										// Ambient skylight
-		lights.push_back(new Light(vec3(10, 0, 3), vec3(0.6, 0.6, 0.6)));			// Sunlight
+		ambientLight = vec3{ 0.8f, 1.0f, 1.0f };												// Skylight
+		lights.push_back(new Light(vec3{ 10.0f, 0.0f, 3.0f }, vec3{ 0.6f, 0.6f, 0.6f }));		// Sunlight
 
 		// Create materials
-
-		Material* GOLD = new ReflectiveMaterial(vec3(0.17, 0.35, 1.5), vec3(3.1, 2.7, 1.9));
-		Material* SILVER = new ReflectiveMaterial(vec3(0.14, 0.16, 0.13), vec3(4.1, 2.3, 3.1));
-		Material* PURPLE = new RoughMaterial(vec3(0.4, 0.2, 0.4), vec3(1, 1, 1), 50);
-		Material* BLUE = new RoughMaterial(vec3(0.2, 0.2, 0.6), vec3(2, 2, 2), 50);
-		Material* ORANGE = new RoughMaterial(vec3(0.3, 0.15, 0), vec3(1, 1, 1), 50);
-		Material* RED = new RoughMaterial(vec3(0.3, 0, 0), vec3(2, 2, 2), 50);
+		Material* GOLD = new ReflectiveMaterial(vec3{ 0.17f, 0.35f, 1.5f }, vec3{ 3.1f, 2.7f, 1.9f });
+		Material* SILVER = new ReflectiveMaterial(vec3{ 0.14f, 0.16f, 0.13f }, vec3{ 4.1f, 2.3f, 3.1f });
+		Material* PURPLE = new RoughMaterial(vec3{ 0.4f, 0.2f, 0.4f });
+		Material* BLUE = new RoughMaterial(vec3{ 0.2f, 0.2f, 0.6f });
+		Material* ORANGE = new RoughMaterial(vec3{ 0.35f, 0.175f, 0.0f });
 
 		// Create objects
+		objects.push_back(new Hyperboloid(vec3{ 0.0f, 0.0f, 0.95f }, vec3{ 0.625f, 0.625f, 1.0f }, SILVER, vec3{ 1.0f, 0.95f, 2.5f }));			// Sun tunnel (objects[0])
+		objects.push_back(new Ellipsoid(vec3{ 0.0f, 0.0f, 0.0f }, vec3{ 2.0f, 2.0f, 1.0f }, ORANGE, vec3{ 1.0f, -1.0f, 0.95f }));				// Room
 
-		objects.push_back(new Ellipsoid(vec3(0, 0, 0), vec3(2, 2, 1), vec3(1, -1.0, 0.95), ORANGE));				// Room
-		objects.push_back(new Hyperboloid(vec3(0, 0, 0.95), vec3(0.625, 0.625, 1), vec3(1, 0.95, 2.5), SILVER));	// Sun tunnel
 
 		// Reflective objects
-		objects.push_back(new Paraboloid(vec3(0.9, -0.1, 0), vec3(0.5, 0.5, 0.4), vec3(1, -1.0, 1), GOLD));			// Gold paraboloid
-		objects.push_back(new Hyperboloid(vec3(0.2, 0.6, -0.5), vec3(0.1, 0.1, 0.3), vec3(1, -1, 0), SILVER));		// Silver hyperboloid
+		objects.push_back(new Paraboloid(vec3{ 0.9f, -0.1f, 0.0f }, vec3{ 0.5f, 0.5f, 0.4f }, GOLD, vec3{ 1.0f, -1.0f, 1.0f }));				// Gold paraboloid
+		objects.push_back(new Hyperboloid(vec3{ 0.2f, 0.6f, -0.5f }, vec3{ 0.1f, 0.1f, 0.3f }, SILVER, vec3{ 1.0f, -1.0f, 0.0f }));									// Silver hyperboloid
 
 		// Rough objects
-		objects.push_back(new Ellipsoid(vec3(0, 0.2, -0.7), vec3(0.15, 0.15, 0.3), vec3(0, 0, 0), BLUE));			// Purple (rough) ellipsoid
-		objects.push_back(new Ellipsoid(vec3(0.2, -0.25, -0.6), vec3(0.05, 0.075, 0.05), vec3(0, 0, 0), RED));		// Blue (rough) ellipsoid
-		objects.push_back(new Ellipsoid(vec3(0.2, -0.25, -0.725), vec3(0.075, 0.15, 0.075), vec3(0, 0, 0), RED));	// Blue (rough) ellipsoid
-		objects.push_back(new Ellipsoid(vec3(0.2, -0.25, -0.9), vec3(0.1, 0.2, 0.1), vec3(0, 0, 0), RED));			// Blue (rough) ellipsoid
-		objects.push_back(new Ellipsoid(vec3(0, 0.2, -0.3), vec3(0.1, 0.1, 0.1), vec3(0, 0, 0), BLUE));			// Purple (rough) sphere
+		objects.push_back(new Ellipsoid(vec3{ 0.0f, 0.2f, -0.7f }, vec3{ 0.15f, 0.15f, 0.3f }, PURPLE));													// Purple (rough) ellipsoid
+		objects.push_back(new Ellipsoid(vec3{ 0.2f, -0.25f, -0.6f }, vec3{ 0.05f, 0.075f, 0.05f }, BLUE));												// Blue (rough) ellipsoid
+		objects.push_back(new Ellipsoid(vec3{ 0.2f, -0.25f, -0.725f }, vec3{ 0.075f, 0.15f, 0.075f }, BLUE));												// Blue (rough) ellipsoid
+		objects.push_back(new Ellipsoid(vec3{ 0.2f, -0.25f, -0.9f }, vec3{ 0.1f, 0.2f, 0.1f }, BLUE));											// Blue (rough) ellipsoid
+		objects.push_back(new Ellipsoid(vec3{ 0.0f, 0.2f, -0.3f }, vec3{ 0.1f, 0.1f, 0.1f }, PURPLE));														// Purple (rough) sphere
 
 		// Generate sample points on hyperboloid surface
 		for (int i = 0; i < 10; i++) {
 			for (int j = 0; j < 10; j++) {
-				float xCoord = -0.625 + i * 0.125;
-				float yCoord = -0.625 + j * 0.125;
-				if (xCoord * xCoord + yCoord * yCoord < 0.625 * 0.625) lightSourceSamples.push_back(vec3{ xCoord, yCoord, 0.95 });
+				float xCoord = -0.625f + i * 0.125f;
+				float yCoord = -0.625f + j * 0.125f;
+				if (xCoord * xCoord + yCoord * yCoord < 0.625f * 0.625f) lightSourceSamples.push_back(vec3{ xCoord, yCoord, 0.95f });
 			}
 		}
 	}
@@ -467,9 +453,9 @@ FullScreenTexturedQuad* fullScreenTextureQuad;
 // Initialization, create an OpenGL context
 void onInitialization() {
 	glViewport(0, 0, windowWidth, windowHeight);
-	
+
 	scene.build();
-	
+
 	std::vector<vec4> image(windowWidth * windowHeight);
 	long timeStart = glutGet(GLUT_ELAPSED_TIME);
 	scene.render(image);
@@ -508,5 +494,3 @@ void onIdle() {
 
 	glutPostRedisplay();
 }
-
-#pragma endregion
